@@ -17,15 +17,14 @@ if(require("ascr",quietly = TRUE, character.only = TRUE) & packageVersion("ascr"
 ## source functions
 source("functions.R")
 
-
-shinyUI(fluidPage(
+ui=fluidPage(
     theme = shinytheme("spacelab"),
     ## App title ----
     titlePanel("acoustic spatial capture-recapture (ascr)", windowTitle = "ascr"),
-
+    
     ## Sidebar layout with input and output definitions ----
     sidebarLayout(
-
+        
         ## Sidebar panel for inputs ----
         sidebarPanel(
             useShinyjs(),
@@ -45,10 +44,10 @@ shinyUI(fluidPage(
                                      "Double Quote" = '"',
                                      "Single Quote" = "'"),
                          selected = '"',inline = TRUE),
-
+            
             radioButtons("disp", "Display",
                          choices = c( All = "all",
-                                     Head = "head"),
+                                      Head = "head"),
                          selected = "all",inline = TRUE),
             fileInput("file1", "Choose CSV file of trap locations",
                       multiple = FALSE,
@@ -61,33 +60,44 @@ shinyUI(fluidPage(
                       accept = c("text/csv",
                                  "text/comma-separated-values,text/plain",
                                  ".csv")),  ## Input: Select a csv file of detection locations
+        
+            fileInput("cov", "Choose csv file of covariate",
+                      multiple = TRUE,
+                      accept = c("text/csv",
+                                 "text/comma-separated-values,text/plain",
+                                 ".csv")),  ## Input: Select a csv file of covariate
+            fileInput("point","Choose csv file of point variables",
+                      multiple = FALSE,
+                      accept = c("text/csv",
+                                 "text/comma-separated-values,text/plain",
+                                 ".csv")),  ## Input: Select a csv file of point
             conditionalPanel(condition = 'input.example == true',
                              radioButtons("trapType_ex", "Single or multi array",
                                           choices = c("Single" = "single",
                                                       "Multiple (N.annamensis data)" = "multi"),
                                           inline = TRUE,selected = "single")
-                             ),
+            ),
             conditionalPanel(condition = 'input.example == false',
                              radioButtons("trapType_us", "Single or multi array",
                                           choices = c("Single" = "single",
                                                       "Multiple" = "multi"),
                                           inline = TRUE,selected = "single")
-                             ),
+            ),
             radioButtons("which_example", "Choose example data to load",
                          choices = c( "Simple" = "simple",
-                                     "With bearings (rad)" = "bearings",
-                                     "With distance (m)" = "distance",
-                                     "With bearings (rad) and distance (m)" = "bd"),
+                                      "With bearings (rad)" = "bearings",
+                                      "With distance (m)" = "distance",
+                                      "With bearings (rad) and distance (m)" = "bd"),
                          inline = TRUE),
             radioButtons("which_example_multi", "Choose example data to load",
                          choices = c( "Simple" = "simple",
-                                     "With bearings (rad)" = "bearings"),
+                                      "With bearings (rad)" = "bearings"),
                          inline = TRUE),
             radioButtons("example_covariates", "Include covariate data?",
-                                          choices = c("Yes" = "yes",
-                                                      "No" = "no"),
-                                          selected = "no",
-                                          inline = TRUE),
+                         choices = c("Yes" = "yes",
+                                     "No" = "no"),
+                         selected = "no",
+                         inline = TRUE),
             
             radioButtons("bearing_range", "Choose bearing measurements",
                          choices = c("Degrees" = "bd",
@@ -107,6 +117,8 @@ shinyUI(fluidPage(
             ## break
             h3(icon("cogs"),tags$b("Modelling")),
             uiOutput("covariate_controls"),
+            uiOutput("nmax"),
+            uiOutput("maxdist"),
             uiOutput("cov_factor"),
             ## select box for detetion functions
             selectInput("select", label = "Choose a detection function", 
@@ -184,55 +196,61 @@ shinyUI(fluidPage(
                                  )),
                         
                         tabPanel( h4(icon("bar-chart"), tags$b("Dectection data")),
-                                 tabsetPanel(
-                                     tabPanel(h5(icon("map-marker"), tags$b("Traps")),
-                                              fluidRow(
-                                                  column(width = 4,
-                                                         h4(icon("table"),"Raw data"),
-                                                         tableOutput("traps")),
-                                                  column(width = 4, 
-                                                         h4(icon("map-marker"),"Trap locations"),
-                                                         plotOutput("trapsPlot"))
-                                              )),
-                                     tabPanel(h5(icon("map-pin"), tags$b("Detections")),
-                                              fluidRow(
-                                                  column(width = 6,
-                                                         h4(icon("table"),"Raw data"),
-                                                         tableOutput("detections")),
-                                                  column(width = 6,
-                                                         uiOutput("which_array_capt"),
-                                                         h4(icon("map-pin"),"Capture history matrix"),
-                                                         tableOutput("capt.hist")))),
-                                     tabPanel(h5(icon("map-signs"),tags$b("Traps & detections")),
-                                              column(width = 12, align = "center",
-                                                     uiOutput("which_array_raw"),
-                                                     numericInput("show.call.num", "Choose call number to display in data plot:",
-                                                                  min = 1, max = 1000,step = 1,
-                                                                  value = 1),
-                                                     plotOutput( height = "700px",width = "700px","show")))
-                                 )),
+                                  tabsetPanel(
+                                      tabPanel(h5(icon("map-marker"), tags$b("Traps")),
+                                               fluidRow(
+                                                   column(width = 4,
+                                                          h4(icon("table"),"Raw data"),
+                                                          tableOutput("traps")),
+                                                   column(width = 4, 
+                                                          h4(icon("map-marker"),"Trap locations"),
+                                                          plotOutput("trapsPlot"))
+                                               )),
+                                      tabPanel(h5(icon("map-pin"), tags$b("Detections")),
+                                               fluidRow(
+                                                   column(width = 6,
+                                                          h4(icon("table"),"Raw data"),
+                                                          tableOutput("detections")),
+                                                   column(width = 6,
+                                                          uiOutput("which_array_capt"),
+                                                          h4(icon("map-pin"),"Capture history matrix"),
+                                                          tableOutput("capt.hist")))),
+                                      tabPanel(h5(icon("map-signs"),tags$b("Traps & detections")),
+                                               column(width = 12, align = "center",
+                                                      uiOutput("which_array_raw"),
+                                                      numericInput("show.call.num", "Choose call number to display in data plot:",
+                                                                   min = 1, max = 1000,step = 1,
+                                                                   value = 1),
+                                                      plotOutput( height = "700px",width = "700px","show")))
+                                  )),
                         tabPanel(h4(icon("database"), tags$b("Mask")),
                                  fluidRow(
                                      column(width = 12, align="center",
                                             textOutput("maskinfo")
-                                            )),
+                                     )),
                                  column(width = 12, align="center",
                                         withSpinner(
                                             plotOutput(height = "800px",width = "800px","maskPlot"),
                                             type = 5,color = "#D3D3D3"),
                                         downloadButton('downloadMask', 'Mask plot')
-                                        )
-                                 ),
+                                 )
+                        ),
                         tabPanel(h4(icon("puzzle-piece"), tags$b("Covariates")),
-                                 fluidRow(
-                                     column(width = 12, align="center",
-                                            fileInput("covs", "Choose raster (.tif) covariate files",
-                                                      multiple = TRUE,
-                                                      accept = c(".tif"))
-                                            )),
-                                 column(width = 12, align="center",
-                                        plotOutput(height = "800px",width = "800px","cov.list"))
-                                 ),
+                                 uiOutput("predict.var"),
+                                 uiOutput("maxdist.cov"),
+                                 uiOutput("nmax.cov"),
+                                 # uiOutput("use.mask.file"),
+                                 tabsetPanel(
+                                     tabPanel(h5(tags$b("Output Data Table")), 
+                                              uiOutput("session1"),
+                                              dataTableOutput("predict.output"),
+                                              downloadButton('downloadoutputtable', 'Prediction Table')),
+                                     tabPanel(h5(tags$b("Plot")),
+                                              uiOutput("session2"),
+                                              fluidRow(
+                                                  column(width = 12, align="center",
+                                                         plotOutput(height = "800px",width = "800px","predict.plot"),
+                                                         downloadButton('downloadpredictionplot', 'Prediction Plot')))))),
                         tabPanel(h4(icon("cogs"), tags$b("Model")),
                                  tabsetPanel(
                                      tabPanel(h5(icon("pencil-square"), tags$b("Model output")),
@@ -244,7 +262,7 @@ shinyUI(fluidPage(
                                                          fluidRow(
                                                              h4(icon("info-circle"),"Model info"),
                                                              withSpinner(tableOutput("AIClL"),type = 5,color = "#D3D3D3"))
-                                                         ),
+                                                  ),
                                                   column(width = 6,
                                                          h4(icon("line-chart"),"Detection function"),
                                                          withSpinner(plotOutput("detfn"),type = 5,color = "#D3D3D3"),
@@ -255,8 +273,8 @@ shinyUI(fluidPage(
                                                   withSpinner(plotOutput("detectionsurf"),type = 5,color = "#D3D3D3"),
                                                   downloadButton('downloadSurfPlot', 'Detection surface'),
                                                   downloadButton('downloadContPlot', 'Detection contour'))
-                                             
-                                              ),
+                                              
+                                     ),
                                      tabPanel(h5(icon("map-signs"), tags$b("Location")),
                                               fluidRow(class = "locs",
                                                        h4(icon("map-signs"),
@@ -270,29 +288,29 @@ shinyUI(fluidPage(
                                                                                          resetOnNew = TRUE)),
                                                                           type = 5,color = "#D3D3D3"),
                                                               tags$head(tags$style(".locs{height:750px}"))
-                                                              ),
+                                                       ),
                                                        column(4,
-                                                       numericInput("call.num",
+                                                              numericInput("call.num",
                                                                            "Choose call number to display in estimated location plot:",
                                                                            min = 1, max = 1000,step = 1,
-                                                                    value = 1),
-                                                       actionButton("reset_locplot", "Reset location plot",icon("refresh"))),
+                                                                           value = 1),
+                                                              actionButton("reset_locplot", "Reset location plot",icon("refresh"))),
                                                        column(4,
-                                                       numericInput("anispeed","Animation frame rate for report (s)",
-                                                                    min = 0.1,max = 5,step = 0.1,
-                                                                    value = 1),
-                                                       downloadButton("report", "Animation"),
-                                                       hidden(p(id = "proc_report", "Processing animation...")))
-                                                       )),
+                                                              numericInput("anispeed","Animation frame rate for report (s)",
+                                                                           min = 0.1,max = 5,step = 0.1,
+                                                                           value = 1),
+                                                              downloadButton("report", "Animation"),
+                                                              hidden(p(id = "proc_report", "Processing animation...")))
+                                              )),
                                      tabPanel(h5(icon("line-chart"), tags$b("Other plots")),
                                               fluidRow(
                                                   h4(icon("line-chart"),"Measurement error distributions"),
                                                   column(6, align="center",
                                                          withSpinner(plotOutput("bearing_pdf"),type = 5,color = "#D3D3D3")
-                                                         ),
+                                                  ),
                                                   column(6, align="center",
                                                          withSpinner(plotOutput("distance_pdf"),type = 5,color = "#D3D3D3")
-                                                         ),
+                                                  ),
                                                   numericInput("distD",
                                                                "Choose distance at which to plot distance error distribution (m):",
                                                                min = 1, max = 10000,step = 1,
@@ -300,14 +318,21 @@ shinyUI(fluidPage(
                                                   downloadButton('downloadbearingPlot', 'Bearing distribution (rad)'),
                                                   downloadButton('downloaddistancePlot', 'Distance distribution (m)'),
                                                   h4(icon("globe"),"Density surface"),
+                                                  column(4, align="center",
+                                                         uiOutput("combine"),
+                                                         uiOutput("which.session")
+                                                  ),
+                                                  column(4, align="center",
+                                                         uiOutput("upload.mask"),
+                                                         uiOutput("mask.file")
+                                                  ),
                                                   column(12, align="center",
                                                          withSpinner(plotOutput("density_surface"),type = 5,color = "#D3D3D3"),
                                                          downloadButton('downloaddensity_surfPlot', 'Density surface'))
                                               ))
                                  )
-                                 )
                         )
+            )
         )
     )
-))
-
+)

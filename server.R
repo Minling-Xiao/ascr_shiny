@@ -1,36 +1,37 @@
 options(shiny.maxRequestSize=30*1024^2) ## increase file upload to 30MB
-shinyServer(function(input, output,session) {
+
+shinyServer=function(input, output,session) {
     ## initiate trap type
     trapType <- "single"
     ## read in input data
-     traps <- reactive({
-         if(input$example == TRUE){
-             if(input$trapType_ex== "single"){
-                 load("shiny_example_traps.RData")
-                 traps <- shiny_example_traps
-                 traps
-             }else{
-                 if(input$trapType_ex== "multi"){
-                     load("shiny_multi_traps.RData")
-                     traps <- shiny_multi_traps
-                     traps
-                 }
-             }
-         }else{
-             req(input$file1)
-             traps <- read.csv(input$file1$datapath,
-                               header = input$header,
-                               sep = input$sep,
-                               quote = input$quote)
-             
-             validate(need("x" %in% names(traps) & "y" %in% names(traps) & "post" %in% names(traps),
-                           "Trap file must contain columns named x, y, and post"))
-             validate(need(class(traps$post)=="integer", "Please give post ID as a whole number"))
-             validate(need(class(traps$x)%in%c("integer","numeric"), "Please ensure x coordinate is numeric"))
-             validate(need(class(traps$y)%in%c("integer","numeric"), "Please ensure y coordinate is numeric"))
-             return(traps)
-         } 
-     })
+    traps <- reactive({
+        if(input$example == TRUE){
+            if(input$trapType_ex== "single"){
+                load("shiny_example_traps.RData")
+                traps <- shiny_example_traps
+                traps
+            }else{
+                if(input$trapType_ex== "multi"){
+                    load("shiny_multi_traps.RData")
+                    traps <- shiny_multi_traps
+                    traps
+                }
+            }
+        }else{
+            req(input$file1)
+            traps <- read.csv(input$file1$datapath,
+                              header = input$header,
+                              sep = input$sep,
+                              quote = input$quote)
+            
+            validate(need("x" %in% names(traps) & "y" %in% names(traps) & "post" %in% names(traps),
+                          "Trap file must contain columns named x, y, and post"))
+            validate(need(class(traps$post)=="integer", "Please give post ID as a whole number"))
+            validate(need(class(traps$x)%in%c("integer","numeric"), "Please ensure x coordinate is numeric"))
+            validate(need(class(traps$y)%in%c("integer","numeric"), "Please ensure y coordinate is numeric"))
+            return(traps)
+        } 
+    })
     detections <- reactive({
         if("simple" %in% input$which_example & input$example == TRUE & input$trapType_ex== "single"){
             load("shiny_example_detections.RData")
@@ -81,7 +82,7 @@ shinyServer(function(input, output,session) {
                                                        quote = input$quote)
                                 
                                 validate(need("occasion" %in% names(detections) & "group" %in% names(detections) &
-                                              "post" %in% names(detections),
+                                                  "post" %in% names(detections),
                                               "Detections file must contain columns named occasion, group, and post"))
                                 validate(need(class(detections$group) == "integer", "Please give group ID as a whole number"))
                                 validate(need(class(detections$occasion) == "integer", "Please give occasion ID as a whole number"))
@@ -118,90 +119,76 @@ shinyServer(function(input, output,session) {
             }
         }
     })
-    ## covariates
-    covariates <- reactive({
-        if("yes"%in%input$example_covariates){
-            lst <-  list(covariate = raster::raster("example_raster.tif"))
-        }else{
-            req(input$covs)
-            files <- input$covs
-            lst <- list()
-            for(i in 1:length(files[,1])){
-                lst[[i]] <- raster::raster(files[[i,"datapath"]])
-            }
-            names(lst) <- unlist(strsplit(files[,1],".tif"))
-        }
-        lst
-        })
-    output$cov.list <- renderPlot({
-        req(covariates())
-        covariates <- covariates()
-        covs <- lapply(covariates,function(x) gplot(x) +
-                                              geom_tile(aes(fill = value)) +
-                                              xlab("x-axis") + ylab("y-axis") +
-                                              theme(panel.background = element_blank(),
-                                                    panel.border = element_rect(colour = "black", fill=NA, size=1)))
-        for(i in 1:length(covariates)){covs[[i]] <- covs[[i]] + ggtitle(names(covariates)[i])}
-        do.call(grid.arrange,covs)
-    })
+    
+    # output$cov.list <- renderPlot({
+    #     req(covariates())
+    #     covariates <- covariates()
+    #     covs <- lapply(covariates,function(x) gplot(x) +
+    #                                           geom_tile(aes(fill = value)) +
+    #                                           xlab("x-axis") + ylab("y-axis") +
+    #                                           theme(panel.background = element_blank(),
+    #                                                 panel.border = element_rect(colour = "black", fill=NA, size=1)))
+    #     for(i in 1:length(covariates)){covs[[i]] <- covs[[i]] + ggtitle(names(covariates)[i])}
+    #     do.call(grid.arrange,covs)
+    # })
     ## covariate buttons
-    output$covariate_controls <- renderUI({
-        req(covariates())
-        covariates <- covariates()
-        checkboxGroupInput("covariate.choose", "Choose covariates to include in your model",
-                           names(covariates))
-    })
+    # output$covariate_controls <- renderUI({
+    #     req(covariates())
+    #     covariates <- covariates()
+    #     checkboxGroupInput("covariate.choose", "Choose covariates to include in your model",
+    #                        names(covariates))
+    # })
     ## covariate factor buttons
-    output$cov_factor <- renderUI({
-        req(covariates())
-        req(input$covariate.choose)
-        which.covariates <- input$covariate.choose
-        covariates <- covariates()
-        covariates <- covariates[which.covariates]
-        checkboxGroupInput("covariate.factor", "Which covariates are factor covariates (tick for yes)",
-                           names(covariates))
-        })
-    cov.use <- reactive({
-        req(covariates())
-        req(input$covariate.choose)
-        req(mask())
-        mask <- mask()
-        if(class(mask) == "list"){
-            msk.locs <- lapply(mask, function(x) cbind(x[,1],x[,2]))
-            which.covariates <- input$covariate.choose
-            covariates <- covariates()
-            covariates <- covariates[which.covariates]
-            if(names(covariates) %in% input$covariate.factor){
-                covariates[[input$covariate.factor]] <- as.factor(covariates[[input$covariate.factor]])
-                levels(covariates[[input$covariate.factor]])[[1]]$category <- as.factor(levels(covariates[[input$covariate.factor]])[[1]]$ID)
-            }
-            covariates.use <- list()
-            for(i in 1:length(msk.locs)){
-                tmp <- lapply(covariates,function(x) if(is.factor(x)){
-                                                         factorValues(x,extract(x,msk.locs[[i]]))
-                                                     }else{
-                                                         data.frame(extract(x,msk.locs[[i]]))
-                                                     }
-                              )
-                covariates.use[[i]] <- as.data.frame(tmp)
-                names(covariates.use[[i]]) <- names(covariates)
-            }
-            return(covariates.use)
-        }else{
-            msk.locs <- cbind(mask[,1],mask[,2])
-            which.covariates <- input$covariate.choose
-            covariates <- covariates()
-            covariates <- covariates[which.covariates]
-            covariates.use <- lapply(covariates, function(x) if(is.factor(x)){
-                                                                 factorValues(x,extract(x,msk.locs))
-                                                             }else{
-                                                                 extract(x,msk.locs)
-                                                             }
-                                     )
-            names(covariates.use) <- names(covariates)
-            return(as.data.frame(covariates.use))
-        }
-    })
+    # output$cov_factor <- renderUI({
+    #     req(covariates())
+    #     req(input$covariate.choose)
+    #     which.covariates <- input$covariate.choose
+    #     covariates <- covariates()
+    #     covariates <- covariates[which.covariates]
+    #     checkboxGroupInput("covariate.factor", "Which covariates are factor covariates (tick for yes)",
+    #                        names(covariates))
+    #     })
+    # cov.use <- reactive({
+    #     req(covariates())
+    #     req(input$covariate.choose)
+    #     req(mask())
+    #     mask <- mask()
+    #     if(class(mask) == "list"){
+    #         msk.locs <- lapply(mask, function(x) cbind(x[,1],x[,2]))
+    #         which.covariates <- input$covariate.choose
+    #         covariates <- covariates()
+    #         covariates <- covariates[which.covariates]
+    #         if(names(covariates) %in% input$covariate.factor){
+    #             covariates[[input$covariate.factor]] <- as.factor(covariates[[input$covariate.factor]])
+    #             levels(covariates[[input$covariate.factor]])[[1]]$category <- as.factor(levels(covariates[[input$covariate.factor]])[[1]]$ID)
+    #         }
+    #         covariates.use <- list()
+    #         for(i in 1:length(msk.locs)){
+    #             tmp <- lapply(covariates,function(x) if(is.factor(x)){
+    #                                                      factorValues(x,extract(x,msk.locs[[i]]))
+    #                                                  }else{
+    #                                                      data.frame(extract(x,msk.locs[[i]]))
+    #                                                  }
+    #                           )
+    #             covariates.use[[i]] <- as.data.frame(tmp)
+    #             names(covariates.use[[i]]) <- names(covariates)
+    #         }
+    #         return(covariates.use)
+    #     }else{
+    #         msk.locs <- cbind(mask[,1],mask[,2])
+    #         which.covariates <- input$covariate.choose
+    #         covariates <- covariates()
+    #         covariates <- covariates[which.covariates]
+    #         covariates.use <- lapply(covariates, function(x) if(is.factor(x)){
+    #                                                              factorValues(x,extract(x,msk.locs))
+    #                                                          }else{
+    #                                                              extract(x,msk.locs)
+    #                                                          }
+    #                                  )
+    #         names(covariates.use) <- names(covariates)
+    #         return(as.data.frame(covariates.use))
+    #     }
+    # })
     ## which array raw
     output$which_array_raw <- renderUI({
         detections <- detections()
@@ -257,11 +244,15 @@ shinyServer(function(input, output,session) {
         if(input$example == TRUE){
             disable("file1")
             disable("file2")
+            disable("cov")
+            disable("point")
             disable("header")
             disable("sep")
             disable("quote")
             hide("file1")
             hide("file2")
+            hide("cov")
+            hide("point")
             hide("header")
             hide("sep")
             hide("quote")
@@ -270,11 +261,15 @@ shinyServer(function(input, output,session) {
         }else{
             enable("file1")
             enable("file2")
+            enable("cov")
+            enable("point")
             enable("header")
             enable("sep")
             enable("quote")
             shinyjs::show("file1")
             shinyjs::show("file2")
+            shinyjs::show("cov")
+            shinyjs::show("point")
             shinyjs::show("header")
             shinyjs::show("sep")
             shinyjs::show("quote")
@@ -348,7 +343,7 @@ shinyServer(function(input, output,session) {
             enable("fixedParamSelection")
             enable("fit")
             shinyjs::show("bearing_range")
-            }
+        }
     })
     
     ## output trap locations
@@ -359,7 +354,7 @@ shinyServer(function(input, output,session) {
         }else{
             return(traps)
         }
-
+        
     },
     striped = TRUE)
     ## code to plot trap locations
@@ -382,7 +377,7 @@ shinyServer(function(input, output,session) {
         }   
     },
     striped = TRUE)
-
+    
     capthist <- reactive({
         detections <- detections()
         traps <- traps()
@@ -424,7 +419,7 @@ are already in radians, please indicate correct bearing measurement in the sideb
         }
         return(capt.hist)
     })
-
+    
     output$capt.hist <- renderTable({
         capthist <- capthist()
         traps <- traps()
@@ -473,25 +468,25 @@ are already in radians, please indicate correct bearing measurement in the sideb
     ## show all plot for raw data
     output$show <- renderPlot({
         traps <- traps()
-            capt.hist <- capthist()
-            if(trapType() == "single"){
-                validate(need(input$show.call.num,"Please provide a call number"))
-                validate(need(input$show.call.num <= nrow(capt.hist$bincapt),"Please provide a valid call number"))
-                show.data(traps, capt.hist,id = input$show.call.num)
-                legend("top",legend = paste("call",input$show.call.num,sep = " "),bty = "n")
-            }else{
-                validate(need(trapType() == "multi",""))
-                traps <- split(traps, traps$array)
-                validate(need(input$show.call.num,"Please provide a call number"))
-                try(show.data(traps[[input$choose_trap_raw]], capt.hist[[input$choose_trap_raw]],id = input$show.call.num),silent = TRUE)
-                legend("top",legend = paste("array", input$choose_trap_raw, " call",input$show.call.num,sep = " "),bty = "n")
-            }
+        capt.hist <- capthist()
+        if(trapType() == "single"){
+            validate(need(input$show.call.num,"Please provide a call number"))
+            validate(need(input$show.call.num <= nrow(capt.hist$bincapt),"Please provide a valid call number"))
+            show.data(traps, capt.hist,id = input$show.call.num)
+            legend("top",legend = paste("call",input$show.call.num,sep = " "),bty = "n")
+        }else{
+            validate(need(trapType() == "multi",""))
+            traps <- split(traps, traps$array)
+            validate(need(input$show.call.num,"Please provide a call number"))
+            try(show.data(traps[[input$choose_trap_raw]], capt.hist[[input$choose_trap_raw]],id = input$show.call.num),silent = TRUE)
+            legend("top",legend = paste("array", input$choose_trap_raw, " call",input$show.call.num,sep = " "),bty = "n")
+        }
     })
     ## change buffer sliding in advanced increase buffer option chosen
     observe({
         if("inc" %in% input$advancedOptions) {
-        maxdistance <- input$incmaskbuffer
-        updateSliderInput(session, "buffer", max = maxdistance,value = maxdistance/2)
+            maxdistance <- input$incmaskbuffer
+            updateSliderInput(session, "buffer", max = maxdistance,value = maxdistance/2)
         }
     })
     ## plot of mask
@@ -515,7 +510,7 @@ are already in radians, please indicate correct bearing measurement in the sideb
     })
     output$maskPlot <- renderPlot({
         traps <- traps()
-        mask <- mask()
+        mask = mask()
         if(trapType() == "single"){
             grid.arrange(show.mask(mask,traps))
         }else{
@@ -525,94 +520,462 @@ are already in radians, please indicate correct bearing measurement in the sideb
             for(i in 1:length(traps)){ m.lst[[i]] <- show.mask(mask[[i]], traps = traps[[i]])}
             do.call(grid.arrange, m.lst)
         }
-        })
+    })
     ## print out mask buffer info
     output$maskinfo <- renderText({
+        mask = mask()
         validate(need(!is.null(mask()),""))
         paste("This mask is assuming that a distance of ",input$buffer,
               "meters is the maximum distance at which a detection is feasibly possible")
     })
+    
+    
+    # mask.df = reactive({
+    #     file = input$mask
+    #     ext <- tools::file_ext(file$datapath)
+    #     req(file)
+    #     validate(need(ext == "csv", "Please upload csv files for Mask"))
+    #     read.csv(file$datapath)
+    # })
+    
+    ## covariates
+    covariates <- reactive({
+        if (input$example & input$example_covariates == "yes"){
+            return(list(covariate = raster::raster("example_raster.tif")))
+        }
+    })
+    
+    cov.list <- reactive({
+        file = input$cov
+        ext = tools::file_ext(file$datapath)
+        req(file)
+        validate(need(ext == "csv", "Please upload csv files for Covariate Data"))
+        return(lapply(file$datapath, function(x) {read.csv(x)}))
+        
+    })
+    
+    point.df = reactive({
+        file = input$point
+        ext <- tools::file_ext(file$datapath)
+        req(file)
+        validate(need(ext == "csv", "Please upload a csv file for Point Data"))
+        read.csv(file$datapath)
+    })
+    
+    cov.var = reactive({
+        if (is.null(input$cov)) {cov.var = c()}
+        else {
+            cov.list = cov.list()
+            cov.var = unique(unlist(sapply(cov.list, function(x){colnames(x)})))
+            cov.var = cov.var[-which(c("X", "Y") %in% cov.var)]
+            cov.var = sort(cov.var)
+        }
+        return(cov.var)
+    })
+    
+    point.var = reactive({
+        if (is.null(input$point)) {point.var = c()}
+        else {
+            point.df = point.df()
+            point.var = unique(point.df$feature)
+            point.var = paste("distance", point.var, sep = "_")
+            point.var = sort(point.var)
+        }
+        return(point.var)
+    })
+    
+    output$predict.var = renderUI({
+        var <- c(cov.var(), point.var())
+        selectInput(
+            inputId = "predict.var",
+            label = "Covariate Variable:",
+            choices = c("Please select" = "empty", var))
+    })
+    
+    output$maxdist.cov = renderUI({
+        if (any(input$predict.var == cov.var())){
+            numericInput(inputId = "maxdist.cov",
+                         label = "Maximum Distance",
+                         value =  1000)}
+    })
+    
+    output$nmax.cov = renderUI({
+        if (any(input$predict.var == cov.var())){
+            numericInput(inputId = "nmax.cov",
+                         label = "Maximum number of nearest observations",
+                         value =  10)}
+    })
+    
+    # output$use.mask.file = renderUI({
+    #     checkboxInput("mask.yes", "Use mask file")
+    # })
+    
+    cov.table.plot = reactive({
+        req(input$predict.var!="empty")
+        req(mask())
+        mask.df = mask()
+        if (class(mask.df)[1]=="list"){
+            mask.df = lapply(mask.df, function(x) cbind("x"=x[,1],"y"=x[,2]))
+            output = list()
+            for (i in 1:length(mask.df)){
+                if (any(input$predict.var == cov.var())) {
+                    req(input$nmax.cov)
+                    req(input$maxdist.cov)
+                    output[[i]]=plot.prediction(
+                        mask = mask.df[[i]],
+                        cov.var = input$predict.var,
+                        point.var = NULL,
+                        nmax = input$nmax.cov,
+                        maxdist = input$maxdist.cov,
+                        cov.list = cov.list(),
+                        point.df = NULL)
+                }
+                else if (any(input$predict.var == point.var())){
+                    var = substring(input$predict.var,10)
+                    output[[i]]=plot.prediction(
+                        mask = mask.df[[i]],
+                        cov.var = NULL,
+                        point.var = var,
+                        nmax = NULL,
+                        maxdist = NULL,
+                        cov.list = NULL,
+                        point.df = point.df())
+                }
+            }
+            return(output)
+        } else{
+            mask.df = cbind("x"=mask.df[,1],"y"=mask.df[,2])
+            if (any(input$predict.var == cov.var())) {
+                req(input$nmax.cov)
+                req(input$maxdist.cov)
+                plot.prediction(
+                    mask = mask.df,
+                    cov.var = input$predict.var,
+                    point.var = NULL,
+                    nmax = input$nmax.cov,
+                    maxdist = input$maxdist.cov,
+                    cov.list = cov.list(),
+                    point.df = NULL
+                )
+            }
+            else if (any(input$predict.var == point.var())) {
+                var = substring(input$predict.var, 10)
+                plot.prediction(
+                    mask = mask.df,
+                    cov.var = NULL,
+                    point.var = var,
+                    nmax = NULL,
+                    maxdist = NULL,
+                    cov.list = NULL,
+                    point.df = point.df()
+                )
+            }
+        }
+    })
+    
+    output$session1 = renderUI({
+        req(mask())
+        mask = mask()
+        if (class(mask)=="list"){
+            numericInput("session1","Session NO.", value = 1)
+        }
+    })
+    
+    output$session2 = renderUI({
+        req(mask())
+        mask=mask()
+        if (class(mask)=="list"){
+            numericInput("session2","Session NO.", value = 1)
+        }
+    })
+    
+    output$predict.output = renderDataTable({
+        req(mask())
+        mask = mask()
+        if (class(mask)[1] == "list"){
+            table = lapply(cov.table.plot(), function(x)x[[1]])
+            session = input$session1
+            table[[session]]
+        }else{
+            cov.table.plot()[[1]]
+        }
+    })
+    
+    output$predict.plot = renderPlot({
+        req(mask())
+        mask = mask()
+        if (class(mask)[1] == "list"){
+            table = lapply(cov.table.plot(), function(x)x[[2]])
+            session = input$session2
+            table[[session]]
+        }else{
+            cov.table.plot()[[2]]
+        }
+    })
+    
+    output$downloadoutputtable <- downloadHandler(
+        filename = "covariate_prediction_output.csv",
+        content = function(file) {
+            write.csv(cov.table.plot()[[1]], file, row.names = FALSE)
+    })
+    
+    output$downloadpredictionplot <- downloadHandler(
+        filename = "covariate_prediction_plot.jpeg",
+        content = function(file) {
+            jpeg(file)
+            print(cov.table.plot()[[2]])
+            dev.off()
+    })
+    
+    # covariate buttons
+    output$covariate_controls <- renderUI({
+        if (input$example & input$example_covariates == "yes"){
+            req(covariates())
+            covariate = covariates()
+            checkboxGroupInput("covariate.choose", "Choose covariates to include in your model",
+                               names(covariate))
+        }
+        else {
+            checkboxGroupInput("covariate.choose", "Choose covariates to include in your model",
+                           c(cov.var(), point.var()))
+        }
+    })
+    
+    output$cov_factor <- renderUI({
+        req(covariates())
+        req(input$covariate.choose)
+        which.covariates <- input$covariate.choose
+        covariates <- covariates()
+        covariates <- covariates[which.covariates]
+        checkboxGroupInput("covariate.factor", "Which covariates are factor covariates (tick for yes)",
+                           names(covariates))
+    })
+    
+    #nmax for fit
+    output$nmax = renderUI({
+        if (any(input$covariate.choose %in% cov.var())){
+            numericInput(inputId = "nmax.fit",
+                         label = "Maximum number of nearest observations",
+                         value =  10)}
+    })
+    
+    #maxdist for fit
+    output$maxdist = renderUI({
+        if (any(input$covariate.choose %in% cov.var())){
+            numericInput(inputId = "maxdist.fit",
+                         label = "Maximum Distance",
+                         value =  1000)}
+    })
+    
+    cov.fit.example <- reactive({
+        req(covariates())
+        req(input$covariate.choose)
+        req(mask())
+        mask <- mask()
+        if(class(mask) == "list"){
+            msk.locs <- lapply(mask, function(x) cbind(x[,1],x[,2]))
+            which.covariates <- input$covariate.choose
+            covariates <- covariates()
+            covariates <- covariates[which.covariates]
+            if(names(covariates) %in% input$covariate.factor){
+                covariates[[input$covariate.factor]] <- as.factor(covariates[[input$covariate.factor]])
+                levels(covariates[[input$covariate.factor]])[[1]]$category <- as.factor(levels(covariates[[input$covariate.factor]])[[1]]$ID)
+            }
+            covariates.use <- list()
+            for(i in 1:length(msk.locs)){
+                tmp <- lapply(covariates,function(x) if(is.factor(x)){
+                    factorValues(x,extract(x,msk.locs[[i]]))
+                }else{
+                    data.frame(extract(x,msk.locs[[i]]))
+                }
+                )
+                covariates.use[[i]] <- as.data.frame(tmp)
+                names(covariates.use[[i]]) <- names(covariates)
+            }
+            return(covariates.use)
+        }else{
+            msk.locs <- cbind(mask[,1],mask[,2])
+            which.covariates <- input$covariate.choose
+            covariates <- covariates()
+            covariates <- covariates[which.covariates]
+            covariates.use <- lapply(covariates, function(x) if(is.factor(x)){
+                factorValues(x,extract(x,msk.locs))
+            }else{
+                extract(x,msk.locs)
+            }
+            )
+            names(covariates.use) <- names(covariates)
+            return(as.data.frame(covariates.use))
+        }
+    })
+    
+    cov.fit = reactive({
+        req(input$covariate.choose)
+        req(mask())
+        mask = mask()
+        var = input$covariate.choose
+        cov.var = cov.var()
+        point.var = point.var()
+        
+        tmp.cov = c()
+        tmp.point = c()
+        for (i in 1:length(var)) {
+            if (any(var[i] == cov.var)){
+                tmp.cov = append(tmp.cov,var[i])
+            } else{
+                tmp.point = append(tmp.point,var[i])
+            }
+        }
+        if (!is.null(tmp.point)){tmp.point = substring(tmp.point,10)}
+        if (class(mask)[1] == "list"){
+            msk.locs = lapply(mask, function(x) cbind("x"=x[,1],"y"=x[,2]))
+            ihd.covariates = list()
+            for (i in 1:length(msk.locs)){
+                covariates = plot.prediction(
+                    mask = msk.locs[[i]],
+                    cov.var = tmp.cov,
+                    point.var = tmp.point,
+                    nmax = input$nmax.fit,
+                    maxdist = input$maxdist.fit,
+                    cov.list = cov.list(),
+                    point.df = point.df())[[1]]
+                ihd.covariates[[i]] = covariates[c(tmp.cov,tmp.point)]
+            }
+            return(ihd.covariates)
+        } else{
+            msk.locs = cbind("x"=mask[,1],"y"=mask[,2])
+            covariates = plot.prediction(
+                mask = msk.locs,
+                cov.var = tmp.cov,
+                point.var = tmp.point,
+                nmax = input$nmax.fit,
+                maxdist = input$maxdist.fit,
+                cov.list = cov.list(),
+                point.df = point.df())[[1]]
+            ihd.covariates = covariates[c(tmp.cov,tmp.point)]
+            return(ihd.covariates)
+        }
+    })
+    # cov.use <- reactive({
+    #     req(input$covariate.choose)
+    #     req(mask())
+    #     mask <- mask()
+    #     if(class(mask) == "list"){
+    #         msk.locs <- lapply(mask, function(x) cbind(x[,1],x[,2]))
+    #         which.covariates <- input$covariate.choose
+    #         if(names(covariates) %in% input$covariate.factor){
+    #             covariates[[input$covariate.factor]] <- as.factor(covariates[[input$covariate.factor]])
+    #             levels(covariates[[input$covariate.factor]])[[1]]$category <- as.factor(levels(covariates[[input$covariate.factor]])[[1]]$ID)
+    #         }
+    #         covariates.use <- list()
+    #         for(i in 1:length(msk.locs)){
+    #             tmp <- lapply(covariates,function(x) if(is.factor(x)){
+    #                                                      factorValues(x,extract(x,msk.locs[[i]]))
+    #                                                  }else{
+    #                                                      data.frame(extract(x,msk.locs[[i]]))
+    #                                                  }
+    #                           )
+    #             covariates.use[[i]] <- as.data.frame(tmp)
+    #             names(covariates.use[[i]]) <- names(covariates)
+    #         }
+    #         return(covariates.use)
+    #     }else{
+    #         msk.locs <- cbind(mask[,1],mask[,2])
+    #         which.covariates <- input$covariate.choose
+    #         covariates <- covariates()
+    #         covariates <- covariates[which.covariates]
+    #         covariates.use <- lapply(covariates, function(x) if(is.factor(x)){
+    #                                                              factorValues(x,extract(x,msk.locs))
+    #                                                          }else{
+    #                                                              extract(x,msk.locs)
+    #                                                          }
+    #                                  )
+    #         names(covariates.use) <- names(covariates)
+    #         return(as.data.frame(covariates.use))
+    #     }
+    # })
+    
     ## choose which parameters of which detection function to fit, conditional numeric input for fixing param values
     output$fixedParamSelection <- renderUI({
         params.fix <- cbind(c("g0","sigma","g0","sigma","z","lambda0","sigma","shape","scale"),
                             c("hn","hn","hr","hr","hr","hhn","hhn","th","th"))
         checkboxGroupInput("parameter", "Fix which parameters:",
                            choices = as.character(params.fix[params.fix[,2] == input$select,1]),inline = TRUE)
-       
+        
     })
     output$fixedg0 <- renderUI({
         conditionalPanel(condition = "input.parameter.includes('g0')",       
                          numericInput("g0","fix g0 to:",value = 1,min = 1,max = 100,step = 1)
-                         )
+        )
     })
     output$fixedsigma <- renderUI({
         conditionalPanel(condition = "input.parameter.includes('sigma')",       
                          numericInput("sigma","fix sigma to:",value = 1,min = 1,max = 100,step = 1)
-                         )
+        )
     })
     output$fixedz <- renderUI({
         conditionalPanel(condition = "input.parameter.includes('z')",       
                          numericInput("z","fix z to:",value = 1,min = 1,max = 100,step = 1)
-                         )
+        )
     })
     output$fixedlambda0 <- renderUI({
         conditionalPanel(condition = "input.parameter.includes('lambda0')",       
                          numericInput("lambda0","fix lambda0 to:",value = 1,min = 1,max = 100,step = 1)
-                         )
+        )
     })
     output$fixedshape <- renderUI({
         conditionalPanel(condition = "input.parameter.includes('shape')",       
                          numericInput("shape","fix shape to:",value = 1,min = 1,max = 100,step = 1)
-                         )
+        )
     })
-
+    
     output$startParamSelection <- renderUI({
         params.fix <- cbind(c("g0","sigma","g0","sigma","z","lambda0","sigma","shape","scale"),
                             c("hn","hn","hr","hr","hr","hhn","hhn","th","th"))
         checkboxGroupInput("parset", "Set starting values for which parameters:",
                            choices = as.character(params.fix[params.fix[,2] == input$select,1]),inline = TRUE)
-       
+        
     })
     output$svg0 <- renderUI({
         conditionalPanel(condition = "input.parset.includes('g0') && !input.parameter.includes('g0')",
                          numericInput("svg0","g0 start value:",value = 1,min = 1,max = 100,step = 1)
-                         )              
+        )              
     }) ## set starting value of g0 ensure it isn't already fixed
-     output$svsigma <- renderUI({
+    output$svsigma <- renderUI({
         conditionalPanel(condition = "input.parset.includes('sigma') && !input.parameter.includes('sigma')",
                          numericInput("svsigma","sigma start value:",value = 1,min = 1,max = 100,step = 1)
-                         )              
+        )              
     }) ## set starting value of sigma ensure it isn't already fixed
     output$svz <- renderUI({
         conditionalPanel(condition = "input.parset.includes('z') && !input.parameter.includes('z')",
                          numericInput("svz","z start value:",value = 1,min = 1,max = 100,step = 1)
-                         )              
+        )              
     }) ## set starting value of z ensure it isn't already fixed
     output$svlambda0 <- renderUI({
         conditionalPanel(condition = "input.parset.includes('lambda0') && !input.parameter.includes('lambda0')",
                          numericInput("svlambda0","lambda0 start value:",value = 1,min = 1,max = 100,step = 1)
-                         )              
+        )              
     }) ## set starting value of lambda0 ensure it isn't already fixed
     output$svshape <- renderUI({
         conditionalPanel(condition = "input.parset.includes('shape') && !input.parameter.includes('shape')",
                          numericInput("svshape","shape start value:",value = 1,min = 1,max = 100,step = 1)
-                         )              
+        )              
     }) ## set starting value of shape ensure it isn't already fixed
     output$svscale <- renderUI({
         conditionalPanel(condition = "input.parset.includes('scale') && !input.parameter.includes('scale')",
                          numericInput("svscale","scale start value:",value = 1,min = 1,max = 100,step = 1)
-                         )              
+        )              
     }) ## set starting value of scale ensure it isn't already fixed
-
+    
     output$svshape.1 <- renderUI({
         conditionalPanel(condition = "input.parset.includes('shape.1') && !input.parameter.includes('shape.1')",
                          numericInput("svshape.1","shape.1 start value:",value = 1,min = 1,max = 100,step = 1)
-                         )              
+        )              
     }) ## set starting value of shape.1 ensure it isn't already fixed
     output$svshape.2 <- renderUI({
         conditionalPanel(condition = "input.parset.includes('shape.2') && !input.parameter.includes('shape.2')",
                          numericInput("svshape.2","shape.2 start value:",value = 1,min = 1,max = 100,step = 1)
-                         )              
+        )              
     }) ## set starting value of shape.2 ensure it isn't already fixed
     
     
@@ -628,7 +991,7 @@ are already in radians, please indicate correct bearing measurement in the sideb
             traps <- split(traps, traps$array)
             traps <- lapply(traps,function(x) cbind(x$x,x$y))  
         }
-        mask <- mask()
+        mask = mask()
         validate(need(!is.null(mask), "Please construct mask"))
         nms <- names(detections)
         capt.hist <- capthist()
@@ -662,11 +1025,24 @@ are already in radians, please indicate correct bearing measurement in the sideb
         disable("fit")
         disable("side-panel")
         shinyjs::show("processing") ## stuff to disable fitting button
+        if (input$example & input$example_covariates == "yes"){
+            cov.use = cov.fit.example()
+        } else{
+            cov.use = cov.fit()
+        }
         if(!is.null(input$covariate.choose)){
+            cov.model = c()
+            for (i in 1:length(input$covariate.choose)) {
+                if (any(input$covariate.choose[i] == point.var())){
+                    cov.model[i] = substring(input$covariate.choose[i],10)
+                } else{
+                    cov.model[i] = input$covariate.choose[i]
+                }
+            }
             ihd <- list(model = as.formula(paste("~",
-                                                 paste(input$covariate.choose,
+                                                 paste(cov.model,
                                                        collapse = " + ", sep = " "))),
-                        covariates = cov.use())
+                        covariates = cov.use)
             fit <-  fit.ascr(capt = capt.hist,traps = traps,mask = mask,detfn =  input$select,
                              fix = fix, sv = sv,trace = TRUE, ihd.opts = ihd)
         }else{
@@ -732,10 +1108,10 @@ are already in radians, please indicate correct bearing measurement in the sideb
             if(probs >= 0.1){
                 legend("center", bty = "n",paste("The detection probability at the mask buffer of ", buffer, "m is", round(probs,3), "(i.e., non-zero), perhaps increase mask buffer."),cex = 0.7,text.col = "red")
             }
-            }else{
-                plot(1,1,col="white",axes = FALSE,xlab = "",ylab = "")
-                text(1,1,paste("convergence issues try advanced options"),col = "grey")
-            }
+        }else{
+            plot(1,1,col="white",axes = FALSE,xlab = "",ylab = "")
+            text(1,1,paste("convergence issues try advanced options"),col = "grey")
+        }
     })
     ## When a double-click happens, check if there's a brush on the plot.
     ## If so, zoom to the brush bounds; if not, reset the zoom.
@@ -756,10 +1132,10 @@ are already in radians, please indicate correct bearing measurement in the sideb
         ranges$x <- NULL
         ranges$y <- NULL
     })
-                    
+    
     output$locs <- renderPlot({
         fit <- fit()
-        mask <- mask()
+        mask = mask()
         if(trapType() == "single"){
             msk <- mask()
         }else{
@@ -819,8 +1195,8 @@ are already in radians, please indicate correct bearing measurement in the sideb
             text(1,1,paste("Convergence issues try advanced options"),col = "grey")
         }
     },width = 700,height = 700)
-   
-        
+    
+    
     
     ## Measurement error plots
     output$bearing_pdf <- renderPlot({
@@ -836,7 +1212,7 @@ are already in radians, please indicate correct bearing measurement in the sideb
             theta = seq(min(theta), max(theta), length.out = 1000)
             show.dvm(theta = theta, kappa = kappa)
             title(paste("array", input$choose_trap))
-            }
+        }
     })
     output$distance_pdf <- renderPlot({
         fit <- fit()
@@ -855,12 +1231,97 @@ are already in radians, please indicate correct bearing measurement in the sideb
             title(paste("array", input$choose_trap))
         }
     })
+    
     ## inhomogeneous density plot
-    output$density_surface <- renderPlot({
-        req(!is.null(input$covariate.choose))
-        show.Dsurf(fit(), session = input$choose_trap)
-        title(main = paste("array",input$choose_trap))
+    output$combine <- renderUI({
+        if(trapType() == "multi"){
+            checkboxInput("combine", "Combine all session",TRUE)
+        }
     })
+    
+    output$which.session <- renderUI({
+        if (trapType() == "multi" & input$combine == FALSE){
+            numericInput("plot.session", "Plot Session No.", value = 1)
+        }
+    })
+    
+    output$upload.mask <- renderUI({
+        if (input$combine == TRUE){
+            checkboxInput("upload.dsurf.mask","Upload My Mask", FALSE)
+        }
+    })
+    
+    output$mask.file <- renderUI({
+        if (input$combine == TRUE & input$upload.dsurf.mask == TRUE){
+            fileInput("dsurf.mask", "Upload csv file of mask",
+                  multiple = FALSE,
+                  accept = c("text/csv",
+                             "text/comma-separated-values,text/plain",
+                             ".csv"))
+        }
+    })
+    
+    output$density_surface <- renderPlot({
+        if(trapType() == "single"){
+            req(!is.null(input$covariate.choose))
+            show.Dsurf(fit(), session = 1)
+            title(main = paste("Session",1))
+        } else if (input$combine == FALSE){
+          req(!is.null(input$covariate.choose))
+          req(input$plot.session)
+          show.Dsurf(fit(), session = input$plot.session)
+          title(main = paste("Session",input$plot.session))
+        } else{
+          req(!is.null(input$covariate.choose))
+          req(mask())
+          mask = mask()
+          
+          if (!is.null(input$plotmaskspacing)){
+            spacing = input$plotmaskspacing
+          } else{spacing = input$spacing} 
+          
+          var = input$covariate.choose
+          cov.var = cov.var()
+          point.var = point.var()
+          
+          tmp.cov = c()
+          tmp.point = c()
+          for (i in 1:length(var)) {
+            if (any(var[i] == cov.var)){
+              tmp.cov = append(tmp.cov,var[i])
+            } else{
+              tmp.point = append(tmp.point,var[i])
+            }
+          }
+          if (!is.null(tmp.point)){tmp.point = substring(tmp.point,10)}
+          
+          if (input$upload.dsurf.mask == TRUE){
+              file = input$dsurf.mask
+              req(file)
+              new.mask = read.csv(file$datapath)
+              validate(need("x" %in% names(new.mask) & "y" %in% names(new.mask),
+                            "Mask file must contain columns named x and y"))
+          } else{
+            x.max = max(sapply(mask, function(x){max(x[, "x"])}))
+            x.min = min(sapply(mask, function(x){min(x[, "x"])}))
+            y.max = max(sapply(mask, function(x){max(x[, "y"])}))
+            y.min = min(sapply(mask, function(x){min(x[, "y"])}))
+            x.col = seq(x.min,x.max,by=spacing)
+            y.col = seq(y.min,y.max,by=spacing)
+            new.mask = data.frame("x"=rep(x.col,by=length(y.col)),"y"=rep(y.col,each=length(x.col)))
+          }
+          new.data = plot.prediction(mask = new.mask,
+                                     cov.var = tmp.cov,
+                                     cov.list = cov.list(),
+                                     point.var = tmp.point,
+                                     point.df = point.df(),
+                                     nmax = input$nmax.fit,
+                                     maxdist = input$maxdist.fit)[[1]]
+          show.Dsurf(fit(),newdata = new.data)
+          title("Combine all sessions")
+        }
+    })
+    
     ## Downloads
     output$downloaddensity_surfPlot<- downloadHandler(
         filename = "ascr_density_surface.png",
@@ -876,14 +1337,14 @@ are already in radians, please indicate correct bearing measurement in the sideb
         content = function(file) {
             png(file)
             traps <- traps()
-            mask <- mask()
+            mask = mask()
             if(trapType() == "single"){
                 show.mask(mask,traps)
             }else{
                 traps <- split(traps, traps$array)
                 m.lst <- list()
                 for(i in 1:length(traps)){ m.lst[[i]] <- show.mask(mask[[i]], traps = traps[[i]])}
-              do.call(grid.arrange, m.lst)
+                do.call(grid.arrange, m.lst)
             }
             dev.off()
         })
@@ -943,8 +1404,8 @@ are already in radians, please indicate correct bearing measurement in the sideb
             disable("downloadbearingPlot")
         }else{
             enable("downloadbearingPlot")
-            }
-        })
+        }
+    })
     output$downloadbearingPlot <- downloadHandler(
         filename = "ascr_bearing_distribution_plot.png",
         content = function(file) {
@@ -1028,7 +1489,7 @@ are already in radians, please indicate correct bearing measurement in the sideb
             render(tempReport, output_file = file,
                    params = params,
                    envir = new.env(parent = globalenv())
-                   )
+            )
             enable("downloadSurfPlot")
             enable("downloadContPlot")
             enable("downloadDetPlot")
@@ -1050,8 +1511,10 @@ are already in radians, please indicate correct bearing measurement in the sideb
     observe({
         if (input$close > 0) {
             stopApp()
-            }
+        }
     })
     session$onSessionEnded(stopApp)
-})
-    
+}
+
+
+
