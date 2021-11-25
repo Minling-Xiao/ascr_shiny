@@ -1,1520 +1,1370 @@
 options(shiny.maxRequestSize=30*1024^2) ## increase file upload to 30MB
 
 shinyServer=function(input, output,session) {
-    ## initiate trap type
-    trapType <- "single"
-    ## read in input data
-    traps <- reactive({
-        if(input$example == TRUE){
-            if(input$trapType_ex== "single"){
-                load("shiny_example_traps.RData")
-                traps <- shiny_example_traps
-                traps
-            }else{
-                if(input$trapType_ex== "multi"){
-                    load("shiny_multi_traps.RData")
-                    traps <- shiny_multi_traps
-                    traps
-                }
-            }
+  ## initiate trap type
+  trapType <- "single"
+  ## read in input data
+  traps <- reactive({
+    if(input$example == TRUE){
+      if(input$trapType_ex== "single"){
+        load("shiny_example_traps.RData")
+        traps <- shiny_example_traps
+        traps
+      }else{
+        if(input$trapType_ex== "multi"){
+          load("shiny_multi_traps.RData")
+          traps <- shiny_multi_traps
+          traps
+        }
+      }
+    }else{
+      req(input$file1)
+      traps <- read.csv(input$file1$datapath,
+                        header = input$header,
+                        sep = input$sep,
+                        quote = input$quote)
+      
+      validate(need("x" %in% names(traps) & "y" %in% names(traps) & "post" %in% names(traps),
+                    "Trap file must contain columns named x, y, and post"))
+      validate(need(class(traps$post)=="integer", "Please give post ID as a whole number"))
+      validate(need(class(traps$x)%in%c("integer","numeric"), "Please ensure x coordinate is numeric"))
+      validate(need(class(traps$y)%in%c("integer","numeric"), "Please ensure y coordinate is numeric"))
+      return(traps)
+    } 
+  })
+  detections <- reactive({
+    if("simple" %in% input$which_example & input$example == TRUE & input$trapType_ex== "single"){
+      load("shiny_example_detections.RData")
+      detections <- shiny_example_detections[,1:3]
+      disable("bearing_range")
+      hide("bearing_range")
+      return(detections)
+    }else{
+      if("bearings" %in% input$which_example & input$example == TRUE & input$trapType_ex== "single"){
+        load("shiny_example_detections.RData")
+        detections <- shiny_example_detections[,1:4]
+        enable("bearing_range")
+        shinyjs::show("bearing_range")
+        return(detections)
+      }else{
+        if("distance" %in% input$which_example & input$example == TRUE & input$trapType_ex == "single"){
+          load("shiny_example_detections.RData")
+          detections <- shiny_example_detections[,-4]
+          disable("bearing_range")
+          hide("bearing_range")
+          return(detections)
         }else{
-            req(input$file1)
-            traps <- read.csv(input$file1$datapath,
-                              header = input$header,
-                              sep = input$sep,
-                              quote = input$quote)
-            
-            validate(need("x" %in% names(traps) & "y" %in% names(traps) & "post" %in% names(traps),
-                          "Trap file must contain columns named x, y, and post"))
-            validate(need(class(traps$post)=="integer", "Please give post ID as a whole number"))
-            validate(need(class(traps$x)%in%c("integer","numeric"), "Please ensure x coordinate is numeric"))
-            validate(need(class(traps$y)%in%c("integer","numeric"), "Please ensure y coordinate is numeric"))
-            return(traps)
-        } 
-    })
-    detections <- reactive({
-        if("simple" %in% input$which_example & input$example == TRUE & input$trapType_ex== "single"){
+          if("bd" %in% input$which_example & input$example == TRUE & input$trapType_ex == "single"){
             load("shiny_example_detections.RData")
-            detections <- shiny_example_detections[,1:3]
-            disable("bearing_range")
-            hide("bearing_range")
+            detections <- shiny_example_detections
+            enable("bearing_range")
+            shinyjs::show("bearing_range")
             return(detections)
-        }else{
-            if("bearings" %in% input$which_example & input$example == TRUE & input$trapType_ex== "single"){
-                load("shiny_example_detections.RData")
-                detections <- shiny_example_detections[,1:4]
+          }else{
+            if("simple" %in% input$which_example_multi& input$example == TRUE & input$trapType_ex== "multi"){
+              load("shiny_multi_detections.RData")
+              detections <- shiny_multi_detections[,1:4]
+              disable("bearing_range")
+              hide("bearing_range")
+              return(detections)
+            }else{
+              if("bearings" %in% input$which_example_multi & input$example == TRUE & input$trapType_ex== "multi"){
+                load("shiny_multi_detections.RData")
+                detections <- shiny_multi_detections[,1:5]
                 enable("bearing_range")
                 shinyjs::show("bearing_range")
                 return(detections)
-            }else{
-                if("distance" %in% input$which_example & input$example == TRUE & input$trapType_ex == "single"){
-                    load("shiny_example_detections.RData")
-                    detections <- shiny_example_detections[,-4]
-                    disable("bearing_range")
-                    hide("bearing_range")
-                    return(detections)
-                }else{
-                    if("bd" %in% input$which_example & input$example == TRUE & input$trapType_ex == "single"){
-                        load("shiny_example_detections.RData")
-                        detections <- shiny_example_detections
-                        enable("bearing_range")
-                        shinyjs::show("bearing_range")
-                        return(detections)
-                    }else{
-                        if("simple" %in% input$which_example_multi& input$example == TRUE & input$trapType_ex== "multi"){
-                            load("shiny_multi_detections.RData")
-                            detections <- shiny_multi_detections[,1:4]
-                            disable("bearing_range")
-                            hide("bearing_range")
-                            return(detections)
-                        }else{
-                            if("bearings" %in% input$which_example_multi & input$example == TRUE & input$trapType_ex== "multi"){
-                                load("shiny_multi_detections.RData")
-                                detections <- shiny_multi_detections[,1:5]
-                                enable("bearing_range")
-                                shinyjs::show("bearing_range")
-                                return(detections)
-                            }else{
-                                req(input$file2)
-                                detections <- read.csv(input$file2$datapath,
-                                                       header = input$header,
-                                                       sep = input$sep,
-                                                       quote = input$quote)
-                                
-                                validate(need("occasion" %in% names(detections) & "group" %in% names(detections) &
-                                                  "post" %in% names(detections),
-                                              "Detections file must contain columns named occasion, group, and post"))
-                                validate(need(class(detections$group) == "integer", "Please give group ID as a whole number"))
-                                validate(need(class(detections$occasion) == "integer", "Please give occasion ID as a whole number"))
-                                validate(need(class(detections$post) == "integer", "Please give post ID as a whole number"))
-                                if("bearing" %in% names(detections)){
-                                    validate(need(class(detections$bearing) == "numeric" | class(detections$bearing) == "integer", "Please make sure all bearings are numeric"))
-                                    enable("bearing_range")
-                                    shinyjs::show("bearing_range")
-                                }else{
-                                    disable("bearing_range")
-                                    hide("bearing_range")
-                                }
-                                if("distance" %in% names(detections)){
-                                    validate(need(class(detections$distance) == "numeric" | class(detections$distance) == "integer" , "Please make sure all distances are numeric"))
-                                    
-                                }
-                                return(detections)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    })
-    ## single/multi variable
-    trapType <- reactive({
-        if("array"%in%names(detections()) & "array"%in%names(traps()) & input$trapType_ex == "multi"){
-            trapType <- "multi"
-        }else{
-            if( "array"%in%names(detections()) & "array"%in%names(traps()) & input$trapType_us == "multi"){
-                trapType <- "multi"
-            }else{
-                trapType <- "single"
-            }
-        }
-    })
-    
-    # output$cov.list <- renderPlot({
-    #     req(covariates())
-    #     covariates <- covariates()
-    #     covs <- lapply(covariates,function(x) gplot(x) +
-    #                                           geom_tile(aes(fill = value)) +
-    #                                           xlab("x-axis") + ylab("y-axis") +
-    #                                           theme(panel.background = element_blank(),
-    #                                                 panel.border = element_rect(colour = "black", fill=NA, size=1)))
-    #     for(i in 1:length(covariates)){covs[[i]] <- covs[[i]] + ggtitle(names(covariates)[i])}
-    #     do.call(grid.arrange,covs)
-    # })
-    ## covariate buttons
-    # output$covariate_controls <- renderUI({
-    #     req(covariates())
-    #     covariates <- covariates()
-    #     checkboxGroupInput("covariate.choose", "Choose covariates to include in your model",
-    #                        names(covariates))
-    # })
-    ## covariate factor buttons
-    # output$cov_factor <- renderUI({
-    #     req(covariates())
-    #     req(input$covariate.choose)
-    #     which.covariates <- input$covariate.choose
-    #     covariates <- covariates()
-    #     covariates <- covariates[which.covariates]
-    #     checkboxGroupInput("covariate.factor", "Which covariates are factor covariates (tick for yes)",
-    #                        names(covariates))
-    #     })
-    # cov.use <- reactive({
-    #     req(covariates())
-    #     req(input$covariate.choose)
-    #     req(mask())
-    #     mask <- mask()
-    #     if(class(mask) == "list"){
-    #         msk.locs <- lapply(mask, function(x) cbind(x[,1],x[,2]))
-    #         which.covariates <- input$covariate.choose
-    #         covariates <- covariates()
-    #         covariates <- covariates[which.covariates]
-    #         if(names(covariates) %in% input$covariate.factor){
-    #             covariates[[input$covariate.factor]] <- as.factor(covariates[[input$covariate.factor]])
-    #             levels(covariates[[input$covariate.factor]])[[1]]$category <- as.factor(levels(covariates[[input$covariate.factor]])[[1]]$ID)
-    #         }
-    #         covariates.use <- list()
-    #         for(i in 1:length(msk.locs)){
-    #             tmp <- lapply(covariates,function(x) if(is.factor(x)){
-    #                                                      factorValues(x,extract(x,msk.locs[[i]]))
-    #                                                  }else{
-    #                                                      data.frame(extract(x,msk.locs[[i]]))
-    #                                                  }
-    #                           )
-    #             covariates.use[[i]] <- as.data.frame(tmp)
-    #             names(covariates.use[[i]]) <- names(covariates)
-    #         }
-    #         return(covariates.use)
-    #     }else{
-    #         msk.locs <- cbind(mask[,1],mask[,2])
-    #         which.covariates <- input$covariate.choose
-    #         covariates <- covariates()
-    #         covariates <- covariates[which.covariates]
-    #         covariates.use <- lapply(covariates, function(x) if(is.factor(x)){
-    #                                                              factorValues(x,extract(x,msk.locs))
-    #                                                          }else{
-    #                                                              extract(x,msk.locs)
-    #                                                          }
-    #                                  )
-    #         names(covariates.use) <- names(covariates)
-    #         return(as.data.frame(covariates.use))
-    #     }
-    # })
-    ## which array raw
-    output$which_array_raw <- renderUI({
-        detections <- detections()
-        traps <- traps()
-        validate(need(!is.null(traps),""))
-        validate(need(!is.null(detections),""))
-        validate(need("array"%in%names(detections),""))
-        validate(need("array"%in%names(traps),""))
-        validate(need(trapType() == "multi",""))
-        arrs <- as.numeric(names(table(traps$array)))
-        mn <- min(arrs)
-        mx <- max(arrs)
-        numericInput("choose_trap_raw", "Choose trap array for plot",
-                     min = mn, max = mx,
-                     value = mn)
-    })
-    
-    ## which array capt
-    output$which_array_capt <- renderUI({
-        detections <- detections()
-        traps <- traps()
-        validate(need(!is.null(traps),""))
-        validate(need(!is.null(detections),""))
-        validate(need("array"%in%names(detections),""))
-        validate(need("array"%in%names(traps),""))
-        validate(need(trapType() == "multi",""))
-        arrs <- as.numeric(names(table(traps$array)))
-        mn <- min(arrs)
-        mx <- max(arrs)
-        numericInput("choose_trap_capt", "Choose trap array for capture history matrix",
-                     min = mn, max = mx,
-                     value = mn)
-    })
-    ## which array output plots
-    output$which_array <- renderUI({
-        detections <- detections()
-        traps <- traps()
-        validate(need(!is.null(traps),""))
-        validate(need(!is.null(detections),""))
-        validate(need("array"%in%names(detections),""))
-        validate(need("array"%in%names(traps),""))
-        validate(need(trapType() == "multi",""))
-        ## validate(need(length(table(traps$array))==length(table(detections$array)),"Need equal number of arrays in detection file as in trap file"))
-        arrs <- as.numeric(names(table(traps$array)))
-        mn <- min(arrs)
-        mx <- max(arrs)
-        numericInput("choose_trap", "Choose trap array for output plots",
-                     min = mn, max = mx,
-                     value = mn)
-    })
-    ## Clunky way of enabling/disabling buttons
-    observe({
-        if(input$example == TRUE){
-            disable("file1")
-            disable("file2")
-            disable("cov")
-            disable("point")
-            disable("header")
-            disable("sep")
-            disable("quote")
-            hide("file1")
-            hide("file2")
-            hide("cov")
-            hide("point")
-            hide("header")
-            hide("sep")
-            hide("quote")
-            enable("example_covariates")
-            shinyjs::show("example_covariates")
-        }else{
-            enable("file1")
-            enable("file2")
-            enable("cov")
-            enable("point")
-            enable("header")
-            enable("sep")
-            enable("quote")
-            shinyjs::show("file1")
-            shinyjs::show("file2")
-            shinyjs::show("cov")
-            shinyjs::show("point")
-            shinyjs::show("header")
-            shinyjs::show("sep")
-            shinyjs::show("quote")
-            disable("which_example_multi")
-            shinyjs::hide("which_example_multi")
-            disable("which_example")
-            shinyjs::hide("which_example")
-            disable("example_covariates")
-            shinyjs::hide("example_covariates")
-        }
-        if(trapType() == "single" & input$example == TRUE){
-            enable("which_example")
-            enable("example_covariates")
-            shinyjs::show("example_covariates")
-            shinyjs::show("which_example")
-            disable("which_example_multi")
-            shinyjs::hide("which_example_multi")
-        }
-        if(trapType() == "multi" & input$example == TRUE){
-            disable("example_covariates")
-            shinyjs::hide("example_covariates")
-            disable("which_example")
-            shinyjs::hide("which_example")
-            enable("which_example_multi")
-            shinyjs::show("which_example_multi")
-        }
-        ## initislly disable some options if no model fitted
-        observeEvent(!input$fit,{
-            disable("downloadSurfPlot")
-            disable("downloadContPlot")
-            disable("downloadDetPlot")
-            disable("call.num")
-            disable("reset_locplot")
-            disable("distD")
-            disable("downloadbearingPlot")
-            disable("downloaddistancePlot")
-            disable("anispeed")
-            disable("report")
-        })
-        observeEvent(input$fit,{
-            enable("downloadSurfPlot")
-            enable("downloadContPlot")
-            enable("downloadDetPlot")
-            enable("call.num")
-            enable("reset_locplot")
-            enable("distD")
-            enable("downloadbearingPlot")
-            enable("downloaddistancePlot")
-            enable("anispeed")
-            enable("report")
-        })
-        
-        if(input$example == FALSE | isTruthy(input$file1) == FALSE){
-            disable("downloadMask")
-            disable("buffer")
-            disable("spacing")
-        }
-        if(isTruthy(input$file1) == TRUE | input$example == TRUE){
-            enable("downloadMask")
-            enable("buffer")
-            enable("spacing") 
-        }
-        if(input$example == FALSE | isTruthy(input$file1) == FALSE & isTruthy(input$file2) == FALSE){
-            disable("select")
-            disable("fixedParamSelection")
-            disable("fit")
-            hide("bearing_range")
-        }
-        if(input$example == TRUE | isTruthy(input$file1) == TRUE & isTruthy(input$file2) == TRUE){
-            enable("select")
-            enable("fixedParamSelection")
-            enable("fit")
-            shinyjs::show("bearing_range")
-        }
-    })
-    
-    ## output trap locations
-    output$traps <- renderTable({
-        traps <- traps()
-        if(input$disp == "head") {
-            return(head(traps))
-        }else{
-            return(traps)
-        }
-        
-    },
-    striped = TRUE)
-    ## code to plot trap locations
-    output$trapsPlot <- renderPlot({
-        traps <- traps()
-        if(!is.null(traps$post)){
-            plot(traps$x,traps$y,asp = 1,type = "n",xlab = "x-axis",ylab = "y-axis")
-            text(traps$x,traps$y,traps$post,lwd = 2)
-        }else{
-            plot(traps$x,traps$y,asp = 1,pch = 4,cex = 2,lwd = 3,xlab = "x-axis",ylab = "y-axis")
-        }
-    })
-    
-    output$detections <- renderTable({
-        detections <- detections()
-        if(input$disp == "head") {
-            return(head(detections))
-        }else{
-            return(detections)
-        }   
-    },
-    striped = TRUE)
-    
-    capthist <- reactive({
-        detections <- detections()
-        traps <- traps()
-        validate(need(!is.null(traps),""))
-        validate(need(!is.null(detections),""))
-        if("bearing" %in% names(detections)){
-            if(input$bearing_range == "rad"){
-                validate(need(min(detections$bearing) >= 0 & max(detections$bearing) <= 2*pi,
-                              "Your bearing measurements are outside the range of radians,
-please indicate correct bearing measurement in the sidebar."))
-            }else{
-                if(input$bearing_range == "bd"){
-                    validate(need(max(detections$bearing) > 2*pi,"Looks like your bearing measurements
-are already in radians, please indicate correct bearing measurement in the sidebar. "))
-                    detections$bearing <- (pi/180)*detections$bearing
-                }
-            }
-        }
-        if(trapType() == "multi"){
-            traps <- split(traps, traps$array)
-            capt.hist <- get.capt.hist(detections, traps = traps)
-            for(i in 1:length(capt.hist)){
-                colnames(capt.hist[[i]][[1]]) <- paste(1:ncol(capt.hist[[i]][[1]]))
-                n.row <- nrow(capt.hist[[i]][[1]])
-                if(n.row != 0 ){
-                    oc <- detections$occasion[detections$array == i]
-                    grp <- detections$group[detections$array == i]
-                    rownames(capt.hist[[i]][[1]]) <- unique(paste("occasion",oc, "group",
-                                                                  grp))
-                }
-            }
-        }else{
-            validate(need(length(table(traps$array))==length(table(detections$array)),
-                          "Need equal number of arrays in detection file as in trap file"))
-            validate(need(trapType() == "single",""))
-            capt.hist <- get.capt.hist(detections, traps = traps)
-            colnames(capt.hist[[1]]) <- paste(1:ncol(capt.hist[[1]]))
-            rownames(capt.hist[[1]]) <- unique(paste("occasion",detections$occasion, "group", detections$group))
-        }
-        return(capt.hist)
-    })
-    
-    output$capt.hist <- renderTable({
-        capthist <- capthist()
-        traps <- traps()
-        validate(need(!is.null(capthist),""))
-        if(trapType() == "single"){
-            if(input$disp == "head") {
-                return(head(capthist[[1]]))
-            }else{
-                return(capthist[[1]])
-            }   
-        }else{
-            if(trapType() == "multi"){
-                if(input$disp == "head") {
-                    validate(need(input$choose_trap <= max(as.numeric(names(table(traps$array)))),"Please provide valid array"))
-                    return(head(capthist[[input$choose_trap_capt]][[1]]))
-                }else{
-                    validate(need(input$choose_trap <= max(as.numeric(names(table(traps$array)))),"Please provide valid array"))
-                    try(capthist[[input$choose_trap_capt]][[1]],silent = TRUE)
-                }  
+              }else{
+                req(input$file2)
+                detections <- read.csv(input$file2$datapath,
+                                       header = input$header,
+                                       sep = input$sep,
+                                       quote = input$quote)
                 
+                validate(need("occasion" %in% names(detections) & "group" %in% names(detections) &
+                                "post" %in% names(detections),
+                              "Detections file must contain columns named occasion, group, and post"))
+                validate(need(class(detections$group) == "integer", "Please give group ID as a whole number"))
+                validate(need(class(detections$occasion) == "integer", "Please give occasion ID as a whole number"))
+                validate(need(class(detections$post) == "integer", "Please give post ID as a whole number"))
+                if("bearing" %in% names(detections)){
+                  validate(need(class(detections$bearing) == "numeric" | class(detections$bearing) == "integer", "Please make sure all bearings are numeric"))
+                  enable("bearing_range")
+                  shinyjs::show("bearing_range")
+                }else{
+                  disable("bearing_range")
+                  hide("bearing_range")
+                }
+                if("distance" %in% names(detections)){
+                  validate(need(class(detections$distance) == "numeric" | class(detections$distance) == "integer" , "Please make sure all distances are numeric"))
+                  
+                }
+                return(detections)
+              }
             }
+          }
         }
-    },striped = TRUE,rownames = TRUE,colnames = TRUE,digits = 0)
-    ## chage buffer slider based on trap range
-    ## chage spacing slider based on trap range
-    observe({
-        if(!is.null(traps())) {
-            traps <- traps()
-            detections <- detections()
+      }
+    }
+  })
+  ## single/multi variable
+  trapType <- reactive({
+    if("array"%in%names(detections()) & "array"%in%names(traps()) & input$trapType_ex == "multi"){
+      trapType <- "multi"
+    }else{
+      if( "array"%in%names(detections()) & "array"%in%names(traps()) & input$trapType_us == "multi"){
+        trapType <- "multi"
+      }else{
+        trapType <- "single"
+      }
+    }
+  })
+  
+  ## which array raw
+  output$which_array_raw <- renderUI({
+    detections <- detections()
+    traps <- traps()
+    validate(need(!is.null(traps),""))
+    validate(need(!is.null(detections),""))
+    validate(need("array"%in%names(detections),""))
+    validate(need("array"%in%names(traps),""))
+    validate(need(trapType() == "multi",""))
+    arrs <- as.numeric(names(table(traps$array)))
+    mn <- min(arrs)
+    mx <- max(arrs)
+    numericInput("choose_trap_raw", "Choose trap array for plot",
+                 min = mn, max = mx,
+                 value = mn)
+  })
+  
+  ## which array capt
+  output$which_array_capt <- renderUI({
+    detections <- detections()
+    traps <- traps()
+    validate(need(!is.null(traps),""))
+    validate(need(!is.null(detections),""))
+    validate(need("array"%in%names(detections),""))
+    validate(need("array"%in%names(traps),""))
+    validate(need(trapType() == "multi",""))
+    arrs <- as.numeric(names(table(traps$array)))
+    mn <- min(arrs)
+    mx <- max(arrs)
+    numericInput("choose_trap_capt", "Choose trap array for capture history matrix",
+                 min = mn, max = mx,
+                 value = mn)
+  })
+  ## which array output plots
+  output$which_array <- renderUI({
+    detections <- detections()
+    traps <- traps()
+    validate(need(!is.null(traps),""))
+    validate(need(!is.null(detections),""))
+    validate(need("array"%in%names(detections),""))
+    validate(need("array"%in%names(traps),""))
+    validate(need(trapType() == "multi",""))
+    ## validate(need(length(table(traps$array))==length(table(detections$array)),"Need equal number of arrays in detection file as in trap file"))
+    arrs <- as.numeric(names(table(traps$array)))
+    mn <- min(arrs)
+    mx <- max(arrs)
+    numericInput("choose_trap", "Choose trap array for output plots",
+                 min = mn, max = mx,
+                 value = mn)
+  })
+  ## Clunky way of enabling/disabling buttons
+  observe({
+    if(input$example == TRUE){
+      disable("file1")
+      disable("file2")
+      disable("cov")
+      disable("point")
+      disable("header")
+      disable("sep")
+      disable("quote")
+      hide("file1")
+      hide("file2")
+      hide("cov")
+      hide("point")
+      hide("header")
+      hide("sep")
+      hide("quote")
+      enable("example_covariates")
+      shinyjs::show("example_covariates")
+    }else{
+      enable("file1")
+      enable("file2")
+      enable("cov")
+      enable("point")
+      enable("header")
+      enable("sep")
+      enable("quote")
+      shinyjs::show("file1")
+      shinyjs::show("file2")
+      shinyjs::show("cov")
+      shinyjs::show("point")
+      shinyjs::show("header")
+      shinyjs::show("sep")
+      shinyjs::show("quote")
+      disable("which_example_multi")
+      shinyjs::hide("which_example_multi")
+      disable("which_example")
+      shinyjs::hide("which_example")
+      disable("example_covariates")
+      shinyjs::hide("example_covariates")
+    }
+    if(trapType() == "single" & input$example == TRUE){
+      enable("which_example")
+      enable("example_covariates")
+      shinyjs::show("example_covariates")
+      shinyjs::show("which_example")
+      disable("which_example_multi")
+      shinyjs::hide("which_example_multi")
+    }
+    if(trapType() == "multi" & input$example == TRUE){
+      disable("example_covariates")
+      shinyjs::hide("example_covariates")
+      disable("which_example")
+      shinyjs::hide("which_example")
+      enable("which_example_multi")
+      shinyjs::show("which_example_multi")
+    }
+    ## initislly disable some options if no model fitted
+    observeEvent(!input$fit,{
+      disable("downloadSurfPlot")
+      disable("downloadContPlot")
+      disable("downloadDetPlot")
+      disable("call.num")
+      disable("reset_locplot")
+      disable("distD")
+      disable("downloadbearingPlot")
+      disable("downloaddistancePlot")
+      disable("anispeed")
+      disable("report")
+    })
+    observeEvent(input$fit,{
+      enable("downloadSurfPlot")
+      enable("downloadContPlot")
+      enable("downloadDetPlot")
+      enable("call.num")
+      enable("reset_locplot")
+      enable("distD")
+      enable("downloadbearingPlot")
+      enable("downloaddistancePlot")
+      enable("anispeed")
+      enable("report")
+    })
+    
+    if(input$example == FALSE | isTruthy(input$file1) == FALSE){
+      disable("downloadMask")
+      disable("buffer")
+      disable("spacing")
+    }
+    if(isTruthy(input$file1) == TRUE | input$example == TRUE){
+      enable("downloadMask")
+      enable("buffer")
+      enable("spacing") 
+    }
+    if(input$example == FALSE | isTruthy(input$file1) == FALSE & isTruthy(input$file2) == FALSE){
+      disable("select")
+      disable("fixedParamSelection")
+      disable("fit")
+      hide("bearing_range")
+    }
+    if(input$example == TRUE | isTruthy(input$file1) == TRUE & isTruthy(input$file2) == TRUE){
+      enable("select")
+      enable("fixedParamSelection")
+      enable("fit")
+      shinyjs::show("bearing_range")
+    }
+  })
+  
+  ## output trap locations
+  output$traps <- renderTable({
+    traps <- traps()
+    if(input$disp == "head") {
+      return(head(traps))
+    }else{
+      return(traps)
+    }
+    
+  },
+  striped = TRUE)
+  ## code to plot trap locations
+  output$trapsPlot <- renderPlot({
+    traps <- traps()
+    if(!is.null(traps$post)){
+      plot(traps$x,traps$y,asp = 1,type = "n",xlab = "x-axis",ylab = "y-axis")
+      text(traps$x,traps$y,traps$post,lwd = 2)
+    }else{
+      plot(traps$x,traps$y,asp = 1,pch = 4,cex = 2,lwd = 3,xlab = "x-axis",ylab = "y-axis")
+    }
+  })
+  
+  output$detections <- renderTable({
+    detections <- detections()
+    if(input$disp == "head") {
+      return(head(detections))
+    }else{
+      return(detections)
+    }   
+  },
+  striped = TRUE)
+  
+  capthist <- reactive({
+    detections <- detections()
+    traps <- traps()
+    validate(need(!is.null(traps),""))
+    validate(need(!is.null(detections),""))
+    if("bearing" %in% names(detections)){
+      if(input$bearing_range == "rad"){
+        validate(need(min(detections$bearing) >= 0 & max(detections$bearing) <= 2*pi,
+                      "Your bearing measurements are outside the range of radians,
+please indicate correct bearing measurement in the sidebar."))
+      }else{
+        if(input$bearing_range == "bd"){
+          validate(need(max(detections$bearing) > 2*pi,"Looks like your bearing measurements
+are already in radians, please indicate correct bearing measurement in the sidebar. "))
+          detections$bearing <- (pi/180)*detections$bearing
+        }
+      }
+    }
+    if(trapType() == "multi"){
+      traps <- split(traps, traps$array)
+      capt.hist <- get.capt.hist(detections, traps = traps)
+      for(i in 1:length(capt.hist)){
+        colnames(capt.hist[[i]][[1]]) <- paste(1:ncol(capt.hist[[i]][[1]]))
+        n.row <- nrow(capt.hist[[i]][[1]])
+        if(n.row != 0 ){
+          oc <- detections$occasion[detections$array == i]
+          grp <- detections$group[detections$array == i]
+          rownames(capt.hist[[i]][[1]]) <- unique(paste("occasion",oc, "group",
+                                                        grp))
+        }
+      }
+    }else{
+      validate(need(length(table(traps$array))==length(table(detections$array)),
+                    "Need equal number of arrays in detection file as in trap file"))
+      validate(need(trapType() == "single",""))
+      capt.hist <- get.capt.hist(detections, traps = traps)
+      colnames(capt.hist[[1]]) <- paste(1:ncol(capt.hist[[1]]))
+      rownames(capt.hist[[1]]) <- unique(paste("occasion",detections$occasion, "group", detections$group))
+    }
+    return(capt.hist)
+  })
+  
+  output$capt.hist <- renderTable({
+    capthist <- capthist()
+    traps <- traps()
+    validate(need(!is.null(capthist),""))
+    if(trapType() == "single"){
+      if(input$disp == "head") {
+        return(head(capthist[[1]]))
+      }else{
+        return(capthist[[1]])
+      }   
+    }else{
+      if(trapType() == "multi"){
+        if(input$disp == "head") {
+          validate(need(input$choose_trap <= max(as.numeric(names(table(traps$array)))),"Please provide valid array"))
+          return(head(capthist[[input$choose_trap_capt]][[1]]))
+        }else{
+          validate(need(input$choose_trap <= max(as.numeric(names(table(traps$array)))),"Please provide valid array"))
+          try(capthist[[input$choose_trap_capt]][[1]],silent = TRUE)
+        }  
+        
+      }
+    }
+  },striped = TRUE,rownames = TRUE,colnames = TRUE,digits = 0)
+  ## chage buffer slider based on trap range
+  ## chage spacing slider based on trap range
+  observe({
+    if(!is.null(traps())) {
+      traps <- traps()
+      detections <- detections()
+      if(trapType() == "single"){
+        dist = as.matrix(dist(traps,upper=T))
+        total = sum(unlist(apply(dist, 1, function(x){sort(x)[2]})))
+        num = nrow(traps)
+        buffer = 2 * total/num
+        msk = create.mask(traps=traps,buffer=buffer)
+        spacing=sqrt(10000*attr(msk, "area"))
+        updateNumericInput(session, "spacing", value = spacing)
+        updateNumericInput(session, "buffer", value = buffer) 
+      }else{
+        validate(need("array"%in%names(detections),""))
+        validate(need("array"%in%names(traps),""))
+        traps = lapply(split(traps,traps$array),function(x)x[,c("x","y")])
+        dist = lapply(traps,function(x){as.matrix(dist(x,upper=T))})
+        total = sum(unlist(lapply(dist, function(x){apply(x, 1, function(y){sort(y)[2]})})))
+        num = sum(unlist(lapply(traps, function(x){nrow(x)})))
+        buffer = 2 * total/num
+        msk = create.mask(traps=traps,buffer=buffer)
+        spacing=sqrt(10000*attr(msk[[1]], "area"))
+        updateNumericInput(session, "spacing",  value = spacing)
+        updateNumericInput(session, "buffer", value = buffer) 
+      }   
+    }
+  })
+  
+  ## show all plot for raw data
+  output$show <- renderPlot({
+    traps <- traps()
+    capt.hist <- capthist()
+    if(trapType() == "single"){
+      validate(need(input$show.call.num,"Please provide a call number"))
+      validate(need(input$show.call.num <= nrow(capt.hist$bincapt),"Please provide a valid call number"))
+      show.data(traps, capt.hist,id = input$show.call.num)
+      legend("top",legend = paste("call",input$show.call.num,sep = " "),bty = "n")
+    }else{
+      validate(need(trapType() == "multi",""))
+      traps <- split(traps, traps$array)
+      validate(need(input$show.call.num,"Please provide a call number"))
+      try(show.data(traps[[input$choose_trap_raw]], capt.hist[[input$choose_trap_raw]],id = input$show.call.num),silent = TRUE)
+      legend("top",legend = paste("array", input$choose_trap_raw, " call",input$show.call.num,sep = " "),bty = "n")
+    }
+  })
+  ## change buffer sliding in advanced increase buffer option chosen
+  observe({
+    if("inc" %in% input$advancedOptions) {
+      maxdistance <- input$incmaskbuffer
+      updateSliderInput(session, "buffer", max = maxdistance,value = maxdistance/2)
+    }
+  })
+  ## plot of mask
+  mask <- eventReactive(input$msk,{
+    shinyjs::show("processing_msk") ## stuff to disable fitting button
+    traps <- traps()
+    validate(need(!is.null(traps),""))
+    validate(need(input$buffer > input$spacing,"The mask buffer cannot be less than the spacing"))
+    validate(need(input$buffer/input$spacing < 80, "Infeasibly fine mask"))
+    if(trapType() == "single"){
+      traps <- as.matrix(cbind(traps$x,traps$y))
+      mask <- create.mask(traps,input$buffer,input$spacing)
+    }else{
+      traps <- split(traps, traps$array)
+      traps <- lapply(traps,function(x) cbind(x$x,x$y))
+      mask <- lapply(traps,create.mask,buffer = input$buffer,spacing = input$spacing)
+    }
+    hide("processing_msk")
+    enable("fit")
+    return(mask)
+  })
+  output$maskPlot <- renderPlot({
+    traps <- traps()
+    mask = mask()
+    if(trapType() == "single"){
+      grid.arrange(show.mask(mask,traps))
+    }else{
+      traps <- split(traps, traps$array)
+      validate(need(is.list(mask), ""))
+      m.lst <- list()
+      for(i in 1:length(traps)){ m.lst[[i]] <- show.mask(mask[[i]], traps = traps[[i]])}
+      do.call(grid.arrange, m.lst)
+    }
+  })
+  ## print out mask buffer info
+  output$maskinfo <- renderText({
+    mask = mask()
+    validate(need(!is.null(mask()),""))
+    paste("This mask is assuming that a distance of ",input$buffer,
+          "meters is the maximum distance at which a detection is feasibly possible")
+  })
+  
+  ## covariates
+  covariates <- reactive({
+    if (input$example & input$example_covariates == "yes"){
+      return(list(covariate = raster::raster("example_raster.tif")))
+    }
+  })
+  
+  cov.list <- reactive({
+    file = input$cov
+    ext = tools::file_ext(file$datapath)
+    req(file)
+    validate(need(ext == "csv", "Please upload csv files for Covariate Data"))
+    return(lapply(file$datapath, function(x) {read.csv(x)}))
+    
+  })
+  
+  point.df = reactive({
+    file = input$point
+    ext <- tools::file_ext(file$datapath)
+    req(file)
+    validate(need(ext == "csv", "Please upload a csv file for Point Data"))
+    read.csv(file$datapath)
+  })
+  
+  cov.var = reactive({
+    if (is.null(input$cov)) {cov.var = c()}
+    else {
+      cov.list = cov.list()
+      cov.var = unique(unlist(sapply(cov.list, function(x){colnames(x)})))
+      cov.var = cov.var[-which(c("X", "Y") %in% cov.var)]
+      cov.var = sort(cov.var)
+    }
+    return(cov.var)
+  })
+  
+  point.var = reactive({
+    if (is.null(input$point)) {point.var = c()}
+    else {
+      point.df = point.df()
+      point.var = unique(point.df$feature)
+      point.var = paste("distance", point.var, sep = "_")
+      point.var = sort(point.var)
+    }
+    return(point.var)
+  })
+  
+  output$predict.var = renderUI({
+    var <- c(cov.var(), point.var())
+    selectInput(
+      inputId = "predict.var",
+      label = "Covariate Variable:",
+      choices = c("Please select" = "empty", var))
+  })
+  
+  output$maxdist.cov = renderUI({
+    if (any(input$predict.var == cov.var())){
+      numericInput(inputId = "maxdist.cov",
+                   label = "Maximum Distance",
+                   value =  1000)}
+  })
+  
+  output$nmax.cov = renderUI({
+    if (any(input$predict.var == cov.var())){
+      numericInput(inputId = "nmax.cov",
+                   label = "Maximum number of nearest observations",
+                   value =  10)}
+  })
+  
+  # output$use.mask.file = renderUI({
+  #     checkboxInput("mask.yes", "Use mask file")
+  # })
+  
+  cov.table.plot = reactive({
+    req(input$predict.var != "empty")
+    req(mask())
+    if (any(input$predict.var == cov.var())){
+      datalist = alldata(mask = mask(),
+                         cov.list = cov.list(),
+                         cov.var = input$predict.var,
+                         nmax = input$nmax.cov,
+                         maxdist = input$maxdist.cov)
+    } else{
+      var = substring(input$predict.var,10)
+      datalist = alldata(mask = mask(),
+                         point.var = var,
+                         point.df = point.df(),
+                         nmax = input$nmax.cov,
+                         maxdist = input$maxdist.cov)
+    }
+    return(datalist)
+  })
+  
+  output$session1 = renderUI({
+    req(mask())
+    mask = mask()
+    if (class(mask)=="list"){
+      numericInput("session1","Session NO.", value = 1)
+    }
+  })
+  
+  output$session2 = renderUI({
+    req(mask())
+    mask=mask()
+    if (class(mask)=="list"){
+      numericInput("session2","Session NO.", value = 1)
+    }
+  })
+  
+  output$predict.output = renderDataTable({
+    req(mask())
+    mask = mask()
+    datalist = cov.table.plot()
+    if (class(mask)[1] == "list"){
+      session = input$session1
+      table = datalist$cov.prediction.df
+      table[[session]]
+    }else{
+      datalist$cov.prediction.df
+    }
+  })
+  
+  output$predict.plot = renderPlot({
+    req(mask())
+    mask = mask()
+    datalist = cov.table.plot()
+    if (class(mask)[1] == "list"){
+      session = input$session2
+      plot = datalist$cov.prediction.plot
+      plot[[session]]
+    }else{
+      datalist$cov.prediction.plot
+    }
+  })
+  
+  output$downloadoutputtable <- downloadHandler(
+    filename = "covariate_prediction_output.csv",
+    content = function(file) {
+      write.csv(cov.table.plot()[[1]], file, row.names = FALSE)
+    })
+  
+  output$downloadpredictionplot <- downloadHandler(
+    filename = "covariate_prediction_plot.jpeg",
+    content = function(file) {
+      jpeg(file)
+      print(cov.table.plot()[[2]])
+      dev.off()
+    })
+  
+  # covariate buttons
+  output$covariate_controls <- renderUI({
+    if (input$example & input$example_covariates == "yes"){
+      req(covariates())
+      covariate = covariates()
+      checkboxGroupInput("covariate.choose", "Choose covariates to include in your model",
+                         names(covariate))
+    }
+    else {
+      checkboxGroupInput("covariate.choose", "Choose covariates to include in your model",
+                         c(cov.var(), point.var()))
+    }
+  })
+  
+  output$cov_factor <- renderUI({
+    req(covariates())
+    req(input$covariate.choose)
+    which.covariates <- input$covariate.choose
+    covariates <- covariates()
+    covariates <- covariates[which.covariates]
+    checkboxGroupInput("covariate.factor", "Which covariates are factor covariates (tick for yes)",
+                       names(covariates))
+  })
+  
+  #nmax for fit
+  output$nmax = renderUI({
+    if (any(input$covariate.choose %in% cov.var())){
+      numericInput(inputId = "nmax.fit",
+                   label = "Maximum number of nearest observations",
+                   value =  10)}
+  })
+  
+  #maxdist for fit
+  output$maxdist = renderUI({
+    if (any(input$covariate.choose %in% cov.var())){
+      numericInput(inputId = "maxdist.fit",
+                   label = "Maximum Distance",
+                   value =  1000)}
+  })
+  
+  cov.fit.example <- reactive({
+    req(covariates())
+    req(input$covariate.choose)
+    req(mask())
+    mask <- mask()
+    if(class(mask) == "list"){
+      msk.locs <- lapply(mask, function(x) cbind(x[,1],x[,2]))
+      which.covariates <- input$covariate.choose
+      covariates <- covariates()
+      covariates <- covariates[which.covariates]
+      if(names(covariates) %in% input$covariate.factor){
+        covariates[[input$covariate.factor]] <- as.factor(covariates[[input$covariate.factor]])
+        levels(covariates[[input$covariate.factor]])[[1]]$category <- as.factor(levels(covariates[[input$covariate.factor]])[[1]]$ID)
+      }
+      covariates.use <- list()
+      for(i in 1:length(msk.locs)){
+        tmp <- lapply(covariates,function(x) if(is.factor(x)){
+          factorValues(x,extract(x,msk.locs[[i]]))
+        }else{
+          data.frame(extract(x,msk.locs[[i]]))
+        }
+        )
+        covariates.use[[i]] <- as.data.frame(tmp)
+        names(covariates.use[[i]]) <- names(covariates)
+      }
+      return(covariates.use)
+    }else{
+      msk.locs <- cbind(mask[,1],mask[,2])
+      which.covariates <- input$covariate.choose
+      covariates <- covariates()
+      covariates <- covariates[which.covariates]
+      covariates.use <- lapply(covariates, function(x) if(is.factor(x)){
+        factorValues(x,extract(x,msk.locs))
+      }else{
+        extract(x,msk.locs)
+      }
+      )
+      names(covariates.use) <- names(covariates)
+      return(as.data.frame(covariates.use))
+    }
+  })
+  
+  cov.fit = reactive({
+    req(input$covariate.choose)
+    req(mask())
+    var = input$covariate.choose
+    cov.var = cov.var()
+    point.var = point.var()
+    
+    tmp.cov = c()
+    tmp.point = c()
+    for (i in 1:length(var)) {
+      if (any(var[i] == cov.var)){
+        tmp.cov = append(tmp.cov,var[i])
+      } else{
+        tmp.point = append(tmp.point,var[i])
+      }
+    }
+    if (!is.null(tmp.point)){tmp.point = substring(tmp.point,10)}
+    
+    if (!is.null(tmp.cov)){
+      cov.list=cov.list()
+    } else{cov.list=NULL}
+    
+    if (!is.null(tmp.point)){
+      point.df = point.df()
+    } else {point.df=NULL}
+    
+    datalist = alldata(mask = mask(),
+                       cov.var = tmp.cov,
+                       point.var = tmp.point,
+                       cov.list = cov.list,
+                       point.df = point.df,
+                       nmax = input$nmax.fit,
+                       maxdist = input$maxdist.fit)
+    
+    return(datalist$cov.prediction.df)
+    
+  })
+  
+  ## choose which parameters of which detection function to fit, conditional numeric input for fixing param values
+  output$fixedParamSelection <- renderUI({
+    params.fix <- cbind(c("g0","sigma","g0","sigma","z","lambda0","sigma","shape","scale"),
+                        c("hn","hn","hr","hr","hr","hhn","hhn","th","th"))
+    checkboxGroupInput("parameter", "Fix which parameters:",
+                       choices = as.character(params.fix[params.fix[,2] == input$select,1]),inline = TRUE)
+    
+  })
+  output$fixedg0 <- renderUI({
+    conditionalPanel(condition = "input.parameter.includes('g0')",       
+                     numericInput("g0","fix g0 to:",value = 1,min = 1,max = 100,step = 1)
+    )
+  })
+  output$fixedsigma <- renderUI({
+    conditionalPanel(condition = "input.parameter.includes('sigma')",       
+                     numericInput("sigma","fix sigma to:",value = 1,min = 1,max = 100,step = 1)
+    )
+  })
+  output$fixedz <- renderUI({
+    conditionalPanel(condition = "input.parameter.includes('z')",       
+                     numericInput("z","fix z to:",value = 1,min = 1,max = 100,step = 1)
+    )
+  })
+  output$fixedlambda0 <- renderUI({
+    conditionalPanel(condition = "input.parameter.includes('lambda0')",       
+                     numericInput("lambda0","fix lambda0 to:",value = 1,min = 1,max = 100,step = 1)
+    )
+  })
+  output$fixedshape <- renderUI({
+    conditionalPanel(condition = "input.parameter.includes('shape')",       
+                     numericInput("shape","fix shape to:",value = 1,min = 1,max = 100,step = 1)
+    )
+  })
+  
+  output$startParamSelection <- renderUI({
+    params.fix <- cbind(c("g0","sigma","g0","sigma","z","lambda0","sigma","shape","scale"),
+                        c("hn","hn","hr","hr","hr","hhn","hhn","th","th"))
+    checkboxGroupInput("parset", "Set starting values for which parameters:",
+                       choices = as.character(params.fix[params.fix[,2] == input$select,1]),inline = TRUE)
+    
+  })
+  output$svg0 <- renderUI({
+    conditionalPanel(condition = "input.parset.includes('g0') && !input.parameter.includes('g0')",
+                     numericInput("svg0","g0 start value:",value = 1,min = 1,max = 100,step = 1)
+    )              
+  }) ## set starting value of g0 ensure it isn't already fixed
+  output$svsigma <- renderUI({
+    conditionalPanel(condition = "input.parset.includes('sigma') && !input.parameter.includes('sigma')",
+                     numericInput("svsigma","sigma start value:",value = 1,min = 1,max = 100,step = 1)
+    )              
+  }) ## set starting value of sigma ensure it isn't already fixed
+  output$svz <- renderUI({
+    conditionalPanel(condition = "input.parset.includes('z') && !input.parameter.includes('z')",
+                     numericInput("svz","z start value:",value = 1,min = 1,max = 100,step = 1)
+    )              
+  }) ## set starting value of z ensure it isn't already fixed
+  output$svlambda0 <- renderUI({
+    conditionalPanel(condition = "input.parset.includes('lambda0') && !input.parameter.includes('lambda0')",
+                     numericInput("svlambda0","lambda0 start value:",value = 1,min = 1,max = 100,step = 1)
+    )              
+  }) ## set starting value of lambda0 ensure it isn't already fixed
+  output$svshape <- renderUI({
+    conditionalPanel(condition = "input.parset.includes('shape') && !input.parameter.includes('shape')",
+                     numericInput("svshape","shape start value:",value = 1,min = 1,max = 100,step = 1)
+    )              
+  }) ## set starting value of shape ensure it isn't already fixed
+  output$svscale <- renderUI({
+    conditionalPanel(condition = "input.parset.includes('scale') && !input.parameter.includes('scale')",
+                     numericInput("svscale","scale start value:",value = 1,min = 1,max = 100,step = 1)
+    )              
+  }) ## set starting value of scale ensure it isn't already fixed
+  
+  output$svshape.1 <- renderUI({
+    conditionalPanel(condition = "input.parset.includes('shape.1') && !input.parameter.includes('shape.1')",
+                     numericInput("svshape.1","shape.1 start value:",value = 1,min = 1,max = 100,step = 1)
+    )              
+  }) ## set starting value of shape.1 ensure it isn't already fixed
+  output$svshape.2 <- renderUI({
+    conditionalPanel(condition = "input.parset.includes('shape.2') && !input.parameter.includes('shape.2')",
+                     numericInput("svshape.2","shape.2 start value:",value = 1,min = 1,max = 100,step = 1)
+    )              
+  }) ## set starting value of shape.2 ensure it isn't already fixed
+  
+  
+  ## Fit model based on inputs of user and output parameter estimates and plots
+  
+  
+  fit <- eventReactive(input$fit,{
+    detections <- detections()
+    traps <- traps()
+    if(trapType() == "single"){
+      traps <- as.matrix(cbind(traps$x,traps$y)) 
+    }else{
+      traps <- split(traps, traps$array)
+      traps <- lapply(traps,function(x) cbind(x$x,x$y))  
+    }
+    mask = mask()
+    validate(need(!is.null(mask), "Please construct mask"))
+    nms <- names(detections)
+    capt.hist <- capthist()
+    validate(need(!is.null(capt.hist), "No capture hstory information"))
+    if(trapType() == "multi"){
+      validate(need(length(capt.hist) == length(mask), "Please construct mask for your loaded traps"))
+    }
+    ## fixed values
+    param.fix <- input$parameter
+    param.fix.value <- list(g0 = input$g0,sigma = input$sigma,z = input$z,lambda0 = input$lambda0,shape = input$shape,
+                            scale = input$scale, shape.1 = input$shape.1,shape.2 = input$shape.2)
+    idx <- match(param.fix,names(param.fix.value))
+    fix <- param.fix.value[idx]
+    ## starting values
+    param.sv <- input$parset
+    param.sv.value <- list(g0 = input$svg0,sigma = input$svsigma,z = input$svz,lambda0 = input$svlambda0,
+                           svshape = input$svshape,
+                           scale = input$svscale, shape.1 = input$svshape.1,shape.2 = input$svshape.2)
+    idsv <- match(param.sv,names(param.sv.value))
+    sv <- param.sv.value[idsv]
+    fit <- NULL
+    disable("downloadSurfPlot")
+    disable("downloadContPlot")
+    disable("downloadDetPlot")
+    disable("downloadbearingPlot")
+    disable("downloaddistancePlot")
+    disable("downloadMask")
+    disable("downloadModel")
+    disable("anispeed")
+    disable("report")
+    disable("fit")
+    disable("side-panel")
+    shinyjs::show("processing") ## stuff to disable fitting button
+    if (input$example & input$example_covariates == "yes"){
+      cov.use = cov.fit.example()
+    } else if (!is.null(input$covariate.choose)){
+      cov.use = cov.fit()
+    }
+    if(!is.null(input$covariate.choose)){
+      cov.model = c()
+      for (i in 1:length(input$covariate.choose)) {
+        if (any(input$covariate.choose[i] == point.var())){
+          cov.model[i] = substring(input$covariate.choose[i],10)
+        } else{
+          cov.model[i] = input$covariate.choose[i]
+        }
+      }
+      ihd <- list(model = as.formula(paste("~",
+                                           paste(cov.model,
+                                                 collapse = " + ", sep = " "))),
+                  covariates = cov.use)
+      fit <-  fit.ascr(capt = capt.hist,traps = traps,mask = mask,detfn =  input$select,
+                       fix = fix, sv = sv,trace = TRUE, ihd.opts = ihd)
+    }else{
+      fit <-  fit.ascr(capt = capt.hist,traps = traps,mask = mask,detfn =  input$select,
+                       fix = fix, sv = sv,trace = TRUE)
+    }
+    enable("fit")
+    enable("side-panel")
+    enable("downloadSurfPlot")
+    enable("downloadContPlot")
+    enable("downloadDetPlot")
+    enable("downloadbearingPlot")
+    enable("downloaddistancePlot")
+    enable("anispeed")
+    enable("report")
+    enable("downloadMask")
+    enable("downloadModel")
+    hide("processing")
+    return(fit)
+  })
+  ## coefficients
+  output$coefs <- renderTable({
+    fit <- fit()
+    if(class(fit)[1]=="ascr"){
+      ci <- confint(fit)
+      res <- data.frame(Estimate = summary(fit)$coefs,Std.Error = summary(fit)$coefs.se, "2.5%" = ci[,1], "97.5%" = ci[,2] )
+      if(res$Estimate[1] < 0.01){res <- matrix(apply(res,1,formatC, format = "e",digits = 2),ncol = 4, byrow = TRUE)}
+      rownames(res) <- names(coef(fit))
+      colnames(res) <- c("Estimate", "Std.Error", "2.5% Cl", "97.5% Cl")
+      return(res)
+    }
+  },rownames = TRUE,digits = 3)
+  ## AIC and log Likelihood
+  output$AIClL <- renderTable({
+    fit <- fit()
+    if(class(fit)[1]=="ascr"){
+      tab <- rbind(AIC = AIC(fit),logLik = fit$loglik)
+      colnames(tab) <- "value"
+      return(tab)
+    }
+  },rownames = TRUE)
+  ## Detection function plots and location estimate plots
+  
+  output$detectionsurf <- renderPlot({
+    fit <- fit()
+    if(class(fit)[1] == "ascr"){
+      par(mfrow = c(1,2))
+      show.detsurf(fit,session = input$choose_trap)
+      show.detsurf(fit,session = input$choose_trap, surface = FALSE)    
+    }else{
+      plot(1,1,col="white",axes = FALSE,xlab = "",ylab = "")
+      text(1,1,paste("convergence issues try advanced options"),col = "grey")
+    }
+  })
+  output$detfn <- renderPlot({
+    fit <- fit()
+    if(class(fit)[1]=="ascr"){
+      detfn <- fit$args$detfn
+      pars <- get.par(fit, pars = fit$detpars, cutoff = fit$fit.types["ss"],as.list = TRUE)
+      buffer <- attr(get.mask(fit,session = input$choose_trap), "buffer")
+      probs <- ascr:::calc.detfn(buffer, detfn = detfn, pars = pars,ss.link =fit$args$ss.opts$ss.link)
+      ascr:::show.detfn(fit)
+      if(probs >= 0.1){
+        legend("center", bty = "n",paste("The detection probability at the mask buffer of ", buffer, "m is", round(probs,3), "(i.e., non-zero), perhaps increase mask buffer."),cex = 0.7,text.col = "red")
+      }
+    }else{
+      plot(1,1,col="white",axes = FALSE,xlab = "",ylab = "")
+      text(1,1,paste("convergence issues try advanced options"),col = "grey")
+    }
+  })
+  ## When a double-click happens, check if there's a brush on the plot.
+  ## If so, zoom to the brush bounds; if not, reset the zoom.
+  ranges <- reactiveValues(x = NULL, y = NULL)
+  observeEvent(input$locsplot_dblclick, {
+    brush <- input$locsplot_brush
+    if (!is.null(brush)) {
+      ranges$x <- c(brush$xmin, brush$xmax)
+      ranges$y <- c(brush$ymin, brush$ymax)
+      
+    } else {
+      ranges$x <- NULL
+      ranges$y <- NULL
+    }
+  })
+  
+  observeEvent(input$reset_locplot,{
+    ranges$x <- NULL
+    ranges$y <- NULL
+  })
+  
+  output$locs <- renderPlot({
+    fit <- fit()
+    mask = mask()
+    if(trapType() == "single"){
+      msk <- mask()
+    }else{
+      msk <- mask[[input$choose_trap]]
+    }
+    
+    if(class(fit)[1]=="ascr"){
+      validate(need(input$call.num,"Please provide a call number"))
+      validate(need(input$call.num <= nrow(fit$args$capt[[1]]$bincapt),"Please provide a valid call number"))
+      if("fine" %in% input$advancedOptions & is.null(ranges$x)){
+        validate(need(input$plotmaskspacing,
+                      "Please provide a spacing for the (plotting) mask or uncheck this option"))
+        validate(need(input$plotmaskspacing > 0,
+                      "Cannnot have a spacing of zero meters"))
+        validate(need(input$buffer > input$plotmaskspacing,
+                      "The mask buffer cannot be less than the (plotting) mask spacing"))
+        validate(need(input$plotmaskspacing < input$spacing,
+                      "To obtain a smooth plot the (plotting) mask spacing should be finer than the model fit mask "))
+        locations(fit,input$call.num,mask = msk)
+        legend("top",legend = paste("call",input$call.num,sep = " "),bty = "n")
+      }else{
+        if(!is.null(ranges$x) & !("fine" %in% input$advancedOptions)){
+          locations(fit,input$call.num,xlim = ranges$x, ylim = ranges$y)
+          legend("top",legend = paste("call",input$call.num,sep = " "),bty = "n")
+        }else{
+          if("fine" %in% input$advancedOptions & !is.null(ranges$x)){
+            validate(need(input$plotmaskspacing,
+                          "Please provide a spacing for the (plotting) mask or uncheck this option"))
+            validate(need(input$plotmaskspacing > 0,
+                          "Cannnot have a spacing of zero meters"))
+            validate(need(input$buffer > input$plotmaskspacing,
+                          "The mask buffer cannot be less than the (plotting) mask spacing"))
+            validate(need(input$plotmaskspacing < input$spacing,
+                          "To obtain a smooth plot the (plotting) mask spacing should be finer than the model fit mask ")) 
             if(trapType() == "single"){
-                maxdistance <- diff(range(traps$x,traps$y))/4
-                updateNumericInput(session, "spacing", max = maxdistance, value = maxdistance/2)
-                maxdistance <- 4*diff(range(traps$x,traps$y))
-                updateNumericInput(session, "buffer", max = maxdistance,value = maxdistance/2) 
+              locations(fit,input$call.num,mask = msk,xlim = ranges$x, ylim = ranges$y)
             }else{
-                validate(need("array"%in%names(detections),""))
-                validate(need("array"%in%names(traps),""))
-                traps <- split(traps, traps$array)
-                maxdistance <- diff(range(traps[[1]]$x,traps[[1]]$y))/4
-                updateNumericInput(session, "spacing", max = maxdistance, value = maxdistance/2)
-                maxdistance <- 4*diff(range(traps[[1]]$x,traps[[1]]$y))
-                updateNumericInput(session, "buffer", max = maxdistance,value = maxdistance/2) 
-            }   
-        }
-    })
-    ## show all plot for raw data
-    output$show <- renderPlot({
-        traps <- traps()
-        capt.hist <- capthist()
-        if(trapType() == "single"){
-            validate(need(input$show.call.num,"Please provide a call number"))
-            validate(need(input$show.call.num <= nrow(capt.hist$bincapt),"Please provide a valid call number"))
-            show.data(traps, capt.hist,id = input$show.call.num)
-            legend("top",legend = paste("call",input$show.call.num,sep = " "),bty = "n")
-        }else{
-            validate(need(trapType() == "multi",""))
-            traps <- split(traps, traps$array)
-            validate(need(input$show.call.num,"Please provide a call number"))
-            try(show.data(traps[[input$choose_trap_raw]], capt.hist[[input$choose_trap_raw]],id = input$show.call.num),silent = TRUE)
-            legend("top",legend = paste("array", input$choose_trap_raw, " call",input$show.call.num,sep = " "),bty = "n")
-        }
-    })
-    ## change buffer sliding in advanced increase buffer option chosen
-    observe({
-        if("inc" %in% input$advancedOptions) {
-            maxdistance <- input$incmaskbuffer
-            updateSliderInput(session, "buffer", max = maxdistance,value = maxdistance/2)
-        }
-    })
-    ## plot of mask
-    mask <- eventReactive(input$msk,{
-        shinyjs::show("processing_msk") ## stuff to disable fitting button
-        traps <- traps()
-        validate(need(!is.null(traps),""))
-        validate(need(input$buffer > input$spacing,"The mask buffer cannot be less than the spacing"))
-        validate(need(input$buffer/input$spacing < 80, "Infeasibly fine mask"))
-        if(trapType() == "single"){
-            traps <- as.matrix(cbind(traps$x,traps$y))
-            mask <- create.mask(traps,input$buffer,input$spacing)
-        }else{
-            traps <- split(traps, traps$array)
-            traps <- lapply(traps,function(x) cbind(x$x,x$y))
-            mask <- lapply(traps,create.mask,buffer = input$buffer,spacing = input$spacing)
-        }
-        hide("processing_msk")
-        enable("fit")
-        return(mask)
-    })
-    output$maskPlot <- renderPlot({
-        traps <- traps()
-        mask = mask()
-        if(trapType() == "single"){
-            grid.arrange(show.mask(mask,traps))
-        }else{
-            traps <- split(traps, traps$array)
-            validate(need(is.list(mask), ""))
-            m.lst <- list()
-            for(i in 1:length(traps)){ m.lst[[i]] <- show.mask(mask[[i]], traps = traps[[i]])}
-            do.call(grid.arrange, m.lst)
-        }
-    })
-    ## print out mask buffer info
-    output$maskinfo <- renderText({
-        mask = mask()
-        validate(need(!is.null(mask()),""))
-        paste("This mask is assuming that a distance of ",input$buffer,
-              "meters is the maximum distance at which a detection is feasibly possible")
-    })
-    
-    
-    # mask.df = reactive({
-    #     file = input$mask
-    #     ext <- tools::file_ext(file$datapath)
-    #     req(file)
-    #     validate(need(ext == "csv", "Please upload csv files for Mask"))
-    #     read.csv(file$datapath)
-    # })
-    
-    ## covariates
-    covariates <- reactive({
-        if (input$example & input$example_covariates == "yes"){
-            return(list(covariate = raster::raster("example_raster.tif")))
-        }
-    })
-    
-    cov.list <- reactive({
-        file = input$cov
-        ext = tools::file_ext(file$datapath)
-        req(file)
-        validate(need(ext == "csv", "Please upload csv files for Covariate Data"))
-        return(lapply(file$datapath, function(x) {read.csv(x)}))
-        
-    })
-    
-    point.df = reactive({
-        file = input$point
-        ext <- tools::file_ext(file$datapath)
-        req(file)
-        validate(need(ext == "csv", "Please upload a csv file for Point Data"))
-        read.csv(file$datapath)
-    })
-    
-    cov.var = reactive({
-        if (is.null(input$cov)) {cov.var = c()}
-        else {
-            cov.list = cov.list()
-            cov.var = unique(unlist(sapply(cov.list, function(x){colnames(x)})))
-            cov.var = cov.var[-which(c("X", "Y") %in% cov.var)]
-            cov.var = sort(cov.var)
-        }
-        return(cov.var)
-    })
-    
-    point.var = reactive({
-        if (is.null(input$point)) {point.var = c()}
-        else {
-            point.df = point.df()
-            point.var = unique(point.df$feature)
-            point.var = paste("distance", point.var, sep = "_")
-            point.var = sort(point.var)
-        }
-        return(point.var)
-    })
-    
-    output$predict.var = renderUI({
-        var <- c(cov.var(), point.var())
-        selectInput(
-            inputId = "predict.var",
-            label = "Covariate Variable:",
-            choices = c("Please select" = "empty", var))
-    })
-    
-    output$maxdist.cov = renderUI({
-        if (any(input$predict.var == cov.var())){
-            numericInput(inputId = "maxdist.cov",
-                         label = "Maximum Distance",
-                         value =  1000)}
-    })
-    
-    output$nmax.cov = renderUI({
-        if (any(input$predict.var == cov.var())){
-            numericInput(inputId = "nmax.cov",
-                         label = "Maximum number of nearest observations",
-                         value =  10)}
-    })
-    
-    # output$use.mask.file = renderUI({
-    #     checkboxInput("mask.yes", "Use mask file")
-    # })
-    
-    cov.table.plot = reactive({
-        req(input$predict.var!="empty")
-        req(mask())
-        mask.df = mask()
-        if (class(mask.df)[1]=="list"){
-            mask.df = lapply(mask.df, function(x) cbind("x"=x[,1],"y"=x[,2]))
-            output = list()
-            for (i in 1:length(mask.df)){
-                if (any(input$predict.var == cov.var())) {
-                    req(input$nmax.cov)
-                    req(input$maxdist.cov)
-                    output[[i]]=plot.prediction(
-                        mask = mask.df[[i]],
-                        cov.var = input$predict.var,
-                        point.var = NULL,
-                        nmax = input$nmax.cov,
-                        maxdist = input$maxdist.cov,
-                        cov.list = cov.list(),
-                        point.df = NULL)
-                }
-                else if (any(input$predict.var == point.var())){
-                    var = substring(input$predict.var,10)
-                    output[[i]]=plot.prediction(
-                        mask = mask.df[[i]],
-                        cov.var = NULL,
-                        point.var = var,
-                        nmax = NULL,
-                        maxdist = NULL,
-                        cov.list = NULL,
-                        point.df = point.df())
-                }
+              locations(fit,session = input$choose_trap,input$call.num,mask = msk,xlim = ranges$x, ylim = ranges$y)
+              title(main = paste("array",input$choose_trap))
             }
-            return(output)
-        } else{
-            mask.df = cbind("x"=mask.df[,1],"y"=mask.df[,2])
-            if (any(input$predict.var == cov.var())) {
-                req(input$nmax.cov)
-                req(input$maxdist.cov)
-                plot.prediction(
-                    mask = mask.df,
-                    cov.var = input$predict.var,
-                    point.var = NULL,
-                    nmax = input$nmax.cov,
-                    maxdist = input$maxdist.cov,
-                    cov.list = cov.list(),
-                    point.df = NULL
-                )
-            }
-            else if (any(input$predict.var == point.var())) {
-                var = substring(input$predict.var, 10)
-                plot.prediction(
-                    mask = mask.df,
-                    cov.var = NULL,
-                    point.var = var,
-                    nmax = NULL,
-                    maxdist = NULL,
-                    cov.list = NULL,
-                    point.df = point.df()
-                )
-            }
-        }
-    })
-    
-    output$session1 = renderUI({
-        req(mask())
-        mask = mask()
-        if (class(mask)=="list"){
-            numericInput("session1","Session NO.", value = 1)
-        }
-    })
-    
-    output$session2 = renderUI({
-        req(mask())
-        mask=mask()
-        if (class(mask)=="list"){
-            numericInput("session2","Session NO.", value = 1)
-        }
-    })
-    
-    output$predict.output = renderDataTable({
-        req(mask())
-        mask = mask()
-        if (class(mask)[1] == "list"){
-            table = lapply(cov.table.plot(), function(x)x[[1]])
-            session = input$session1
-            table[[session]]
-        }else{
-            cov.table.plot()[[1]]
-        }
-    })
-    
-    output$predict.plot = renderPlot({
-        req(mask())
-        mask = mask()
-        if (class(mask)[1] == "list"){
-            table = lapply(cov.table.plot(), function(x)x[[2]])
-            session = input$session2
-            table[[session]]
-        }else{
-            cov.table.plot()[[2]]
-        }
-    })
-    
-    output$downloadoutputtable <- downloadHandler(
-        filename = "covariate_prediction_output.csv",
-        content = function(file) {
-            write.csv(cov.table.plot()[[1]], file, row.names = FALSE)
-    })
-    
-    output$downloadpredictionplot <- downloadHandler(
-        filename = "covariate_prediction_plot.jpeg",
-        content = function(file) {
-            jpeg(file)
-            print(cov.table.plot()[[2]])
-            dev.off()
-    })
-    
-    # covariate buttons
-    output$covariate_controls <- renderUI({
-        if (input$example & input$example_covariates == "yes"){
-            req(covariates())
-            covariate = covariates()
-            checkboxGroupInput("covariate.choose", "Choose covariates to include in your model",
-                               names(covariate))
-        }
-        else {
-            checkboxGroupInput("covariate.choose", "Choose covariates to include in your model",
-                           c(cov.var(), point.var()))
-        }
-    })
-    
-    output$cov_factor <- renderUI({
-        req(covariates())
-        req(input$covariate.choose)
-        which.covariates <- input$covariate.choose
-        covariates <- covariates()
-        covariates <- covariates[which.covariates]
-        checkboxGroupInput("covariate.factor", "Which covariates are factor covariates (tick for yes)",
-                           names(covariates))
-    })
-    
-    #nmax for fit
-    output$nmax = renderUI({
-        if (any(input$covariate.choose %in% cov.var())){
-            numericInput(inputId = "nmax.fit",
-                         label = "Maximum number of nearest observations",
-                         value =  10)}
-    })
-    
-    #maxdist for fit
-    output$maxdist = renderUI({
-        if (any(input$covariate.choose %in% cov.var())){
-            numericInput(inputId = "maxdist.fit",
-                         label = "Maximum Distance",
-                         value =  1000)}
-    })
-    
-    cov.fit.example <- reactive({
-        req(covariates())
-        req(input$covariate.choose)
-        req(mask())
-        mask <- mask()
-        if(class(mask) == "list"){
-            msk.locs <- lapply(mask, function(x) cbind(x[,1],x[,2]))
-            which.covariates <- input$covariate.choose
-            covariates <- covariates()
-            covariates <- covariates[which.covariates]
-            if(names(covariates) %in% input$covariate.factor){
-                covariates[[input$covariate.factor]] <- as.factor(covariates[[input$covariate.factor]])
-                levels(covariates[[input$covariate.factor]])[[1]]$category <- as.factor(levels(covariates[[input$covariate.factor]])[[1]]$ID)
-            }
-            covariates.use <- list()
-            for(i in 1:length(msk.locs)){
-                tmp <- lapply(covariates,function(x) if(is.factor(x)){
-                    factorValues(x,extract(x,msk.locs[[i]]))
-                }else{
-                    data.frame(extract(x,msk.locs[[i]]))
-                }
-                )
-                covariates.use[[i]] <- as.data.frame(tmp)
-                names(covariates.use[[i]]) <- names(covariates)
-            }
-            return(covariates.use)
-        }else{
-            msk.locs <- cbind(mask[,1],mask[,2])
-            which.covariates <- input$covariate.choose
-            covariates <- covariates()
-            covariates <- covariates[which.covariates]
-            covariates.use <- lapply(covariates, function(x) if(is.factor(x)){
-                factorValues(x,extract(x,msk.locs))
-            }else{
-                extract(x,msk.locs)
-            }
-            )
-            names(covariates.use) <- names(covariates)
-            return(as.data.frame(covariates.use))
-        }
-    })
-    
-    cov.fit = reactive({
-        req(input$covariate.choose)
-        req(mask())
-        mask = mask()
-        var = input$covariate.choose
-        cov.var = cov.var()
-        point.var = point.var()
-        
-        tmp.cov = c()
-        tmp.point = c()
-        for (i in 1:length(var)) {
-            if (any(var[i] == cov.var)){
-                tmp.cov = append(tmp.cov,var[i])
-            } else{
-                tmp.point = append(tmp.point,var[i])
-            }
-        }
-        if (!is.null(tmp.point)){tmp.point = substring(tmp.point,10)}
-        if (class(mask)[1] == "list"){
-            msk.locs = lapply(mask, function(x) cbind("x"=x[,1],"y"=x[,2]))
-            ihd.covariates = list()
-            for (i in 1:length(msk.locs)){
-                covariates = plot.prediction(
-                    mask = msk.locs[[i]],
-                    cov.var = tmp.cov,
-                    point.var = tmp.point,
-                    nmax = input$nmax.fit,
-                    maxdist = input$maxdist.fit,
-                    cov.list = cov.list(),
-                    point.df = point.df())[[1]]
-                ihd.covariates[[i]] = covariates[c(tmp.cov,tmp.point)]
-            }
-            return(ihd.covariates)
-        } else{
-            msk.locs = cbind("x"=mask[,1],"y"=mask[,2])
-            covariates = plot.prediction(
-                mask = msk.locs,
-                cov.var = tmp.cov,
-                point.var = tmp.point,
-                nmax = input$nmax.fit,
-                maxdist = input$maxdist.fit,
-                cov.list = cov.list(),
-                point.df = point.df())[[1]]
-            ihd.covariates = covariates[c(tmp.cov,tmp.point)]
-            return(ihd.covariates)
-        }
-    })
-    # cov.use <- reactive({
-    #     req(input$covariate.choose)
-    #     req(mask())
-    #     mask <- mask()
-    #     if(class(mask) == "list"){
-    #         msk.locs <- lapply(mask, function(x) cbind(x[,1],x[,2]))
-    #         which.covariates <- input$covariate.choose
-    #         if(names(covariates) %in% input$covariate.factor){
-    #             covariates[[input$covariate.factor]] <- as.factor(covariates[[input$covariate.factor]])
-    #             levels(covariates[[input$covariate.factor]])[[1]]$category <- as.factor(levels(covariates[[input$covariate.factor]])[[1]]$ID)
-    #         }
-    #         covariates.use <- list()
-    #         for(i in 1:length(msk.locs)){
-    #             tmp <- lapply(covariates,function(x) if(is.factor(x)){
-    #                                                      factorValues(x,extract(x,msk.locs[[i]]))
-    #                                                  }else{
-    #                                                      data.frame(extract(x,msk.locs[[i]]))
-    #                                                  }
-    #                           )
-    #             covariates.use[[i]] <- as.data.frame(tmp)
-    #             names(covariates.use[[i]]) <- names(covariates)
-    #         }
-    #         return(covariates.use)
-    #     }else{
-    #         msk.locs <- cbind(mask[,1],mask[,2])
-    #         which.covariates <- input$covariate.choose
-    #         covariates <- covariates()
-    #         covariates <- covariates[which.covariates]
-    #         covariates.use <- lapply(covariates, function(x) if(is.factor(x)){
-    #                                                              factorValues(x,extract(x,msk.locs))
-    #                                                          }else{
-    #                                                              extract(x,msk.locs)
-    #                                                          }
-    #                                  )
-    #         names(covariates.use) <- names(covariates)
-    #         return(as.data.frame(covariates.use))
-    #     }
-    # })
-    
-    ## choose which parameters of which detection function to fit, conditional numeric input for fixing param values
-    output$fixedParamSelection <- renderUI({
-        params.fix <- cbind(c("g0","sigma","g0","sigma","z","lambda0","sigma","shape","scale"),
-                            c("hn","hn","hr","hr","hr","hhn","hhn","th","th"))
-        checkboxGroupInput("parameter", "Fix which parameters:",
-                           choices = as.character(params.fix[params.fix[,2] == input$select,1]),inline = TRUE)
-        
-    })
-    output$fixedg0 <- renderUI({
-        conditionalPanel(condition = "input.parameter.includes('g0')",       
-                         numericInput("g0","fix g0 to:",value = 1,min = 1,max = 100,step = 1)
-        )
-    })
-    output$fixedsigma <- renderUI({
-        conditionalPanel(condition = "input.parameter.includes('sigma')",       
-                         numericInput("sigma","fix sigma to:",value = 1,min = 1,max = 100,step = 1)
-        )
-    })
-    output$fixedz <- renderUI({
-        conditionalPanel(condition = "input.parameter.includes('z')",       
-                         numericInput("z","fix z to:",value = 1,min = 1,max = 100,step = 1)
-        )
-    })
-    output$fixedlambda0 <- renderUI({
-        conditionalPanel(condition = "input.parameter.includes('lambda0')",       
-                         numericInput("lambda0","fix lambda0 to:",value = 1,min = 1,max = 100,step = 1)
-        )
-    })
-    output$fixedshape <- renderUI({
-        conditionalPanel(condition = "input.parameter.includes('shape')",       
-                         numericInput("shape","fix shape to:",value = 1,min = 1,max = 100,step = 1)
-        )
-    })
-    
-    output$startParamSelection <- renderUI({
-        params.fix <- cbind(c("g0","sigma","g0","sigma","z","lambda0","sigma","shape","scale"),
-                            c("hn","hn","hr","hr","hr","hhn","hhn","th","th"))
-        checkboxGroupInput("parset", "Set starting values for which parameters:",
-                           choices = as.character(params.fix[params.fix[,2] == input$select,1]),inline = TRUE)
-        
-    })
-    output$svg0 <- renderUI({
-        conditionalPanel(condition = "input.parset.includes('g0') && !input.parameter.includes('g0')",
-                         numericInput("svg0","g0 start value:",value = 1,min = 1,max = 100,step = 1)
-        )              
-    }) ## set starting value of g0 ensure it isn't already fixed
-    output$svsigma <- renderUI({
-        conditionalPanel(condition = "input.parset.includes('sigma') && !input.parameter.includes('sigma')",
-                         numericInput("svsigma","sigma start value:",value = 1,min = 1,max = 100,step = 1)
-        )              
-    }) ## set starting value of sigma ensure it isn't already fixed
-    output$svz <- renderUI({
-        conditionalPanel(condition = "input.parset.includes('z') && !input.parameter.includes('z')",
-                         numericInput("svz","z start value:",value = 1,min = 1,max = 100,step = 1)
-        )              
-    }) ## set starting value of z ensure it isn't already fixed
-    output$svlambda0 <- renderUI({
-        conditionalPanel(condition = "input.parset.includes('lambda0') && !input.parameter.includes('lambda0')",
-                         numericInput("svlambda0","lambda0 start value:",value = 1,min = 1,max = 100,step = 1)
-        )              
-    }) ## set starting value of lambda0 ensure it isn't already fixed
-    output$svshape <- renderUI({
-        conditionalPanel(condition = "input.parset.includes('shape') && !input.parameter.includes('shape')",
-                         numericInput("svshape","shape start value:",value = 1,min = 1,max = 100,step = 1)
-        )              
-    }) ## set starting value of shape ensure it isn't already fixed
-    output$svscale <- renderUI({
-        conditionalPanel(condition = "input.parset.includes('scale') && !input.parameter.includes('scale')",
-                         numericInput("svscale","scale start value:",value = 1,min = 1,max = 100,step = 1)
-        )              
-    }) ## set starting value of scale ensure it isn't already fixed
-    
-    output$svshape.1 <- renderUI({
-        conditionalPanel(condition = "input.parset.includes('shape.1') && !input.parameter.includes('shape.1')",
-                         numericInput("svshape.1","shape.1 start value:",value = 1,min = 1,max = 100,step = 1)
-        )              
-    }) ## set starting value of shape.1 ensure it isn't already fixed
-    output$svshape.2 <- renderUI({
-        conditionalPanel(condition = "input.parset.includes('shape.2') && !input.parameter.includes('shape.2')",
-                         numericInput("svshape.2","shape.2 start value:",value = 1,min = 1,max = 100,step = 1)
-        )              
-    }) ## set starting value of shape.2 ensure it isn't already fixed
-    
-    
-    ## Fit model based on inputs of user and output parameter estimates and plots
-    
-    
-    fit <- eventReactive(input$fit,{
-        detections <- detections()
-        traps <- traps()
-        if(trapType() == "single"){
-            traps <- as.matrix(cbind(traps$x,traps$y)) 
-        }else{
-            traps <- split(traps, traps$array)
-            traps <- lapply(traps,function(x) cbind(x$x,x$y))  
-        }
-        mask = mask()
-        validate(need(!is.null(mask), "Please construct mask"))
-        nms <- names(detections)
-        capt.hist <- capthist()
-        validate(need(!is.null(capt.hist), "No capture hstory information"))
-        if(trapType() == "multi"){
-            validate(need(length(capt.hist) == length(mask), "Please construct mask for your loaded traps"))
-        }
-        ## fixed values
-        param.fix <- input$parameter
-        param.fix.value <- list(g0 = input$g0,sigma = input$sigma,z = input$z,lambda0 = input$lambda0,shape = input$shape,
-                                scale = input$scale, shape.1 = input$shape.1,shape.2 = input$shape.2)
-        idx <- match(param.fix,names(param.fix.value))
-        fix <- param.fix.value[idx]
-        ## starting values
-        param.sv <- input$parset
-        param.sv.value <- list(g0 = input$svg0,sigma = input$svsigma,z = input$svz,lambda0 = input$svlambda0,
-                               svshape = input$svshape,
-                               scale = input$svscale, shape.1 = input$svshape.1,shape.2 = input$svshape.2)
-        idsv <- match(param.sv,names(param.sv.value))
-        sv <- param.sv.value[idsv]
-        fit <- NULL
-        disable("downloadSurfPlot")
-        disable("downloadContPlot")
-        disable("downloadDetPlot")
-        disable("downloadbearingPlot")
-        disable("downloaddistancePlot")
-        disable("downloadMask")
-        disable("downloadModel")
-        disable("anispeed")
-        disable("report")
-        disable("fit")
-        disable("side-panel")
-        shinyjs::show("processing") ## stuff to disable fitting button
-        if (input$example & input$example_covariates == "yes"){
-            cov.use = cov.fit.example()
-        } else{
-            cov.use = cov.fit()
-        }
-        if(!is.null(input$covariate.choose)){
-            cov.model = c()
-            for (i in 1:length(input$covariate.choose)) {
-                if (any(input$covariate.choose[i] == point.var())){
-                    cov.model[i] = substring(input$covariate.choose[i],10)
-                } else{
-                    cov.model[i] = input$covariate.choose[i]
-                }
-            }
-            ihd <- list(model = as.formula(paste("~",
-                                                 paste(cov.model,
-                                                       collapse = " + ", sep = " "))),
-                        covariates = cov.use)
-            fit <-  fit.ascr(capt = capt.hist,traps = traps,mask = mask,detfn =  input$select,
-                             fix = fix, sv = sv,trace = TRUE, ihd.opts = ihd)
-        }else{
-            fit <-  fit.ascr(capt = capt.hist,traps = traps,mask = mask,detfn =  input$select,
-                             fix = fix, sv = sv,trace = TRUE)
-        }
-        enable("fit")
-        enable("side-panel")
-        enable("downloadSurfPlot")
-        enable("downloadContPlot")
-        enable("downloadDetPlot")
-        enable("downloadbearingPlot")
-        enable("downloaddistancePlot")
-        enable("anispeed")
-        enable("report")
-        enable("downloadMask")
-        enable("downloadModel")
-        hide("processing")
-        return(fit)
-    })
-    ## coefficients
-    output$coefs <- renderTable({
-        fit <- fit()
-        if(class(fit)[1]=="ascr"){
-            ci <- confint(fit)
-            res <- data.frame(Estimate = summary(fit)$coefs,Std.Error = summary(fit)$coefs.se, "2.5%" = ci[,1], "97.5%" = ci[,2] )
-            if(res$Estimate[1] < 0.01){res <- matrix(apply(res,1,formatC, format = "e",digits = 2),ncol = 4, byrow = TRUE)}
-            rownames(res) <- names(coef(fit))
-            colnames(res) <- c("Estimate", "Std.Error", "2.5% Cl", "97.5% Cl")
-            return(res)
-        }
-    },rownames = TRUE,digits = 3)
-    ## AIC and log Likelihood
-    output$AIClL <- renderTable({
-        fit <- fit()
-        if(class(fit)[1]=="ascr"){
-            tab <- rbind(AIC = AIC(fit),logLik = fit$loglik)
-            colnames(tab) <- "value"
-            return(tab)
-        }
-    },rownames = TRUE)
-    ## Detection function plots and location estimate plots
-    
-    output$detectionsurf <- renderPlot({
-        fit <- fit()
-        if(class(fit)[1] == "ascr"){
-            par(mfrow = c(1,2))
-            show.detsurf(fit,session = input$choose_trap)
-            show.detsurf(fit,session = input$choose_trap, surface = FALSE)    
-        }else{
-            plot(1,1,col="white",axes = FALSE,xlab = "",ylab = "")
-            text(1,1,paste("convergence issues try advanced options"),col = "grey")
-        }
-    })
-    output$detfn <- renderPlot({
-        fit <- fit()
-        if(class(fit)[1]=="ascr"){
-            detfn <- fit$args$detfn
-            pars <- get.par(fit, pars = fit$detpars, cutoff = fit$fit.types["ss"],as.list = TRUE)
-            buffer <- attr(get.mask(fit,session = input$choose_trap), "buffer")
-            probs <- ascr:::calc.detfn(buffer, detfn = detfn, pars = pars,ss.link =fit$args$ss.opts$ss.link)
-            ascr:::show.detfn(fit)
-            if(probs >= 0.1){
-                legend("center", bty = "n",paste("The detection probability at the mask buffer of ", buffer, "m is", round(probs,3), "(i.e., non-zero), perhaps increase mask buffer."),cex = 0.7,text.col = "red")
-            }
-        }else{
-            plot(1,1,col="white",axes = FALSE,xlab = "",ylab = "")
-            text(1,1,paste("convergence issues try advanced options"),col = "grey")
-        }
-    })
-    ## When a double-click happens, check if there's a brush on the plot.
-    ## If so, zoom to the brush bounds; if not, reset the zoom.
-    ranges <- reactiveValues(x = NULL, y = NULL)
-    observeEvent(input$locsplot_dblclick, {
-        brush <- input$locsplot_brush
-        if (!is.null(brush)) {
-            ranges$x <- c(brush$xmin, brush$xmax)
-            ranges$y <- c(brush$ymin, brush$ymax)
             
-        } else {
-            ranges$x <- NULL
-            ranges$y <- NULL
-        }
-    })
-    
-    observeEvent(input$reset_locplot,{
-        ranges$x <- NULL
-        ranges$y <- NULL
-    })
-    
-    output$locs <- renderPlot({
-        fit <- fit()
-        mask = mask()
-        if(trapType() == "single"){
-            msk <- mask()
-        }else{
-            msk <- mask[[input$choose_trap]]
-        }
-        
-        if(class(fit)[1]=="ascr"){
-            validate(need(input$call.num,"Please provide a call number"))
-            validate(need(input$call.num <= nrow(fit$args$capt[[1]]$bincapt),"Please provide a valid call number"))
-            if("fine" %in% input$advancedOptions & is.null(ranges$x)){
-                validate(need(input$plotmaskspacing,
-                              "Please provide a spacing for the (plotting) mask or uncheck this option"))
-                validate(need(input$plotmaskspacing > 0,
-                              "Cannnot have a spacing of zero meters"))
-                validate(need(input$buffer > input$plotmaskspacing,
-                              "The mask buffer cannot be less than the (plotting) mask spacing"))
-                validate(need(input$plotmaskspacing < input$spacing,
-                              "To obtain a smooth plot the (plotting) mask spacing should be finer than the model fit mask "))
-                locations(fit,input$call.num,mask = msk)
-                legend("top",legend = paste("call",input$call.num,sep = " "),bty = "n")
+            legend("top",legend = paste("call",input$call.num,sep = " "),bty = "n")
+          }else{
+            if(trapType() == "single"){
+              locations(fit, input$call.num)
             }else{
-                if(!is.null(ranges$x) & !("fine" %in% input$advancedOptions)){
-                    locations(fit,input$call.num,xlim = ranges$x, ylim = ranges$y)
-                    legend("top",legend = paste("call",input$call.num,sep = " "),bty = "n")
-                }else{
-                    if("fine" %in% input$advancedOptions & !is.null(ranges$x)){
-                        validate(need(input$plotmaskspacing,
-                                      "Please provide a spacing for the (plotting) mask or uncheck this option"))
-                        validate(need(input$plotmaskspacing > 0,
-                                      "Cannnot have a spacing of zero meters"))
-                        validate(need(input$buffer > input$plotmaskspacing,
-                                      "The mask buffer cannot be less than the (plotting) mask spacing"))
-                        validate(need(input$plotmaskspacing < input$spacing,
-                                      "To obtain a smooth plot the (plotting) mask spacing should be finer than the model fit mask ")) 
-                        if(trapType() == "single"){
-                            locations(fit,input$call.num,mask = msk,xlim = ranges$x, ylim = ranges$y)
-                        }else{
-                            locations(fit,session = input$choose_trap,input$call.num,mask = msk,xlim = ranges$x, ylim = ranges$y)
-                            title(main = paste("array",input$choose_trap))
-                        }
-                        
-                        legend("top",legend = paste("call",input$call.num,sep = " "),bty = "n")
-                    }else{
-                        if(trapType() == "single"){
-                            locations(fit, input$call.num)
-                        }else{
-                            locations(fit,session = input$choose_trap, input$call.num)
-                            title(main = paste("array",input$choose_trap))
-                        }
-                        
-                        legend("top",legend = paste("call",input$call.num,sep = " "),bty = "n")
-                    }
-                }
+              locations(fit,session = input$choose_trap, input$call.num)
+              title(main = paste("array",input$choose_trap))
             }
-        }else{
-            plot(1,1,col="white",axes = FALSE,xlab = "",ylab = "")
-            text(1,1,paste("Convergence issues try advanced options"),col = "grey")
+            
+            legend("top",legend = paste("call",input$call.num,sep = " "),bty = "n")
+          }
         }
-    },width = 700,height = 700)
-    
-    
-    
-    ## Measurement error plots
-    output$bearing_pdf <- renderPlot({
-        fit <- fit()
-        validate(need(!is.null(fit$args$capt[[1]]$bearing),"No bearing data provided"))
+      }
+    }else{
+      plot(1,1,col="white",axes = FALSE,xlab = "",ylab = "")
+      text(1,1,paste("Convergence issues try advanced options"),col = "grey")
+    }
+  },width = 700,height = 700)
+  
+  
+  
+  ## Measurement error plots
+  output$bearing_pdf <- renderPlot({
+    fit <- fit()
+    validate(need(!is.null(fit$args$capt[[1]]$bearing),"No bearing data provided"))
+    kappa = fit$coefficients["kappa"]
+    if(trapType() == "single"){
+      theta = sort(fit$args$capt[[1]]$bearing - pi)
+      theta = seq(min(theta), max(theta), length.out = 1000)
+      show.dvm(theta = theta, kappa = kappa)
+    }else{
+      theta = sort(fit$args$capt[[input$choose_trap]]$bearing - pi)
+      theta = seq(min(theta), max(theta), length.out = 1000)
+      show.dvm(theta = theta, kappa = kappa)
+      title(paste("array", input$choose_trap))
+    }
+  })
+  output$distance_pdf <- renderPlot({
+    fit <- fit()
+    validate(need(!is.null(fit$args$capt[[1]]$dist),"No distance data provided"))
+    validate(need(!(input$distD == 0), "Distance cannot be zero"))
+    validate(need(!is.null(input$distD), "Please provide distance for measurement error distribution"))
+    validate(need(input$distD < max(fit$args$capt[[1]]$dist),"Distance cannot be greater than those observed"))
+    d <- input$distD
+    shape <- fit$coefficients["alpha"]
+    if(trapType() == "single"){
+      x <- sort(fit$args$capt[[1]]$dist)
+      show.distgam(x = x, shape = shape, d = d)
+    }else{
+      x <- sort(fit$args$capt[[input$choose_trap]]$dist)
+      show.distgam(x = x, shape = shape, d = d)
+      title(paste("array", input$choose_trap))
+    }
+  })
+  
+  ## inhomogeneous density plot
+  output$combine <- renderUI({
+    if(trapType() == "multi"){
+      checkboxInput("combine", "Combine all session",TRUE)
+    }
+  })
+  
+  output$which.session <- renderUI({
+    if (trapType() == "multi" & input$combine == FALSE){
+      numericInput("plot.session", "Plot Session No.", value = 1)
+    }
+  })
+  
+  output$upload.mask <- renderUI({
+    if (input$combine == TRUE){
+      checkboxInput("upload.dsurf.mask","Upload My Mask", FALSE)
+    }
+  })
+  
+  output$mask.file <- renderUI({
+    if (input$combine == TRUE & input$upload.dsurf.mask == TRUE){
+      fileInput("dsurf.mask", "Upload csv file of mask",
+                multiple = FALSE,
+                accept = c("text/csv",
+                           "text/comma-separated-values,text/plain",
+                           ".csv"))
+    }
+  })
+  
+  output$density_surface <- renderPlot({
+    if(trapType() == "single"){
+      req(!is.null(input$covariate.choose))
+      show.Dsurf(fit(), session = 1)
+      title(main = paste("Session",1))
+    } else if (input$combine == FALSE){
+      req(!is.null(input$covariate.choose))
+      req(input$plot.session)
+      show.Dsurf(fit(), session = input$plot.session)
+      title(main = paste("Session",input$plot.session))
+    } else{
+      req(!is.null(input$covariate.choose))
+      req(mask())
+      mask = mask()
+      
+      if (!is.null(input$plotmaskspacing)){
+        spacing = input$plotmaskspacing
+      } else{spacing = input$spacing} 
+      
+      var = input$covariate.choose
+      cov.var = cov.var()
+      point.var = point.var()
+      
+      tmp.cov = c()
+      tmp.point = c()
+      for (i in 1:length(var)) {
+        if (any(var[i] == cov.var)){
+          tmp.cov = append(tmp.cov,var[i])
+        } else{
+          tmp.point = append(tmp.point,var[i])
+        }
+      }
+      if (!is.null(tmp.point)){tmp.point = substring(tmp.point,10)}
+      
+      if (input$upload.dsurf.mask == TRUE){
+        file = input$dsurf.mask
+        req(file)
+        new.mask = read.csv(file$datapath)
+        validate(need("x" %in% names(new.mask) & "y" %in% names(new.mask),
+                      "Mask file must contain columns named x and y"))
+      } else{
+        x.max = max(sapply(mask, function(x){max(x[, "x"])}))
+        x.min = min(sapply(mask, function(x){min(x[, "x"])}))
+        y.max = max(sapply(mask, function(x){max(x[, "y"])}))
+        y.min = min(sapply(mask, function(x){min(x[, "y"])}))
+        x.col = seq(x.min,x.max,by=spacing)
+        y.col = seq(y.min,y.max,by=spacing)
+        new.mask = data.frame("x"=rep(x.col,by=length(y.col)),"y"=rep(y.col,each=length(x.col)))
+      }
+      
+      if (!is.null(tmp.cov)){
+        cov.list=cov.list()
+      } else{cov.list=NULL}
+      
+      if (!is.null(tmp.point)){
+        point.df = point.df()
+      } else {point.df=NULL}
+      
+      datalist = alldata(mask = new.mask,
+                         cov.var = tmp.cov,
+                         point.var = tmp.point,
+                         cov.list = cov.list,
+                         point.df = point.df,
+                         nmax = input$nmax.fit,
+                         maxdist = input$maxdist.fit)
+      
+      new.data = datalist$cov.prediction.df
+      show.Dsurf(fit(),newdata = new.data)
+      title("Combine all sessions")
+    }
+  })
+  
+  ## Downloads
+  output$downloaddensity_surfPlot<- downloadHandler(
+    filename = "ascr_density_surface.png",
+    content = function(file) {
+      req(!is.null(input$covariate.choose))
+      png(file)
+      show.Dsurf(fit(), session = input$choose_trap)
+      title(main = paste("array",input$choose_trap))
+      dev.off()
+    })
+  output$downloadMask <- downloadHandler(
+    filename = "ascrMask.png",
+    content = function(file) {
+      png(file)
+      traps <- traps()
+      mask = mask()
+      if(trapType() == "single"){
+        show.mask(mask,traps)
+      }else{
+        traps <- split(traps, traps$array)
+        m.lst <- list()
+        for(i in 1:length(traps)){ m.lst[[i]] <- show.mask(mask[[i]], traps = traps[[i]])}
+        do.call(grid.arrange, m.lst)
+      }
+      dev.off()
+    })
+  output$downloadSurfPlot <- downloadHandler(
+    filename = "ascr_detection_surface_plot.png",
+    content = function(file) {
+      png(file)
+      fit <- fit()
+      if(class(fit)[1] == "ascr"){
+        par(mfrow = c(1,2))
+        show.detsurf(fit,session = input$choose_trap)
+        show.detsurf(fit,,session = input$choose_trap, surface = TRUE)    
+      }else{
+        plot(1,1,col="white",axes = FALSE,xlab = "",ylab = "")
+        text(1,1,paste("convergence issues try advanced options"),col = "grey")
+      }
+      dev.off()
+    })
+  output$downloadContPlot <- downloadHandler(
+    filename = "ascr_detection_contour_plot.png",
+    content = function(file) {
+      png(file)
+      fit <- fit()
+      if(class(fit)[1] == "ascr"){
+        par(mfrow = c(1,2))
+        show.detsurf(fit,session = input$choose_trap)
+        show.detsurf(fit,,session = input$choose_trap, surface = FALSE)    
+      }else{
+        plot(1,1,col="white",axes = FALSE,xlab = "",ylab = "")
+        text(1,1,paste("convergence issues try advanced options"),col = "grey")
+      }
+      dev.off()
+    })
+  output$downloadDetPlot <- downloadHandler(
+    filename = "ascr_detection_function_plot.png",
+    content = function(file) {
+      png(file)
+      fit <- fit()
+      if(class(fit)[1]=="ascr"){
+        ascr:::show.detfn(fit)
+      }else{
+        NULL
+      }
+      dev.off()
+    })
+  ## deal with bearing and distance plots
+  observe({
+    fit <- fit()
+    if(is.null(fit$args$capt[[1]]$dist)){
+      disable("downloaddistancePlot")
+      disable("distD")
+    }else{
+      enable("downloaddistancePlot")
+      enable("distD")
+    }
+    if(is.null(fit$args$capt[[1]]$bearing)){
+      disable("downloadbearingPlot")
+    }else{
+      enable("downloadbearingPlot")
+    }
+  })
+  output$downloadbearingPlot <- downloadHandler(
+    filename = "ascr_bearing_distribution_plot.png",
+    content = function(file) {
+      fit <- fit()
+      validate(need(!is.null(fit$args$capt[[1]]$bearing),"No bearing data provided"))
+      png(file) 
+      if(class(fit)[1]=="ascr"){ 
         kappa = fit$coefficients["kappa"]
         if(trapType() == "single"){
-            theta = sort(fit$args$capt[[1]]$bearing - pi)
-            theta = seq(min(theta), max(theta), length.out = 1000)
-            show.dvm(theta = theta, kappa = kappa)
+          theta = sort(fit$args$capt[[1]]$bearing - pi)
+          show.dvm(theta = theta, kappa = kappa)
         }else{
-            theta = sort(fit$args$capt[[input$choose_trap]]$bearing - pi)
-            theta = seq(min(theta), max(theta), length.out = 1000)
-            show.dvm(theta = theta, kappa = kappa)
-            title(paste("array", input$choose_trap))
+          theta = sort(fit$args$capt[[input$choose_trap]]$bearing - pi)
+          show.dvm(theta = theta, kappa = kappa)
+          title(paste("array", input$choose_trap))
         }
+      }else{
+        NULL
+      }
+      dev.off()
     })
-    output$distance_pdf <- renderPlot({
-        fit <- fit()
-        validate(need(!is.null(fit$args$capt[[1]]$dist),"No distance data provided"))
-        validate(need(!(input$distD == 0), "Distance cannot be zero"))
-        validate(need(!is.null(input$distD), "Please provide distance for measurement error distribution"))
-        validate(need(input$distD < max(fit$args$capt[[1]]$dist),"Distance cannot be greater than those observed"))
+  output$downloaddistancePlot <- downloadHandler(
+    filename = "ascr_distance_distribution_plot.png",
+    content = function(file) {
+      fit <- fit()
+      validate(need(!is.null(fit$args$capt[[1]]$dist),"No distance data provided"))
+      png(file)
+      if(class(fit)[1]=="ascr"){
         d <- input$distD
         shape <- fit$coefficients["alpha"]
         if(trapType() == "single"){
-            x <- sort(fit$args$capt[[1]]$dist)
-            show.distgam(x = x, shape = shape, d = d)
+          x <- sort(fit$args$capt[[1]]$dist)
+          show.distgam(x = x, shape = shape, d = d)
         }else{
-            x <- sort(fit$args$capt[[input$choose_trap]]$dist)
-            show.distgam(x = x, shape = shape, d = d)
-            title(paste("array", input$choose_trap))
+          x <- sort(fit$args$capt[[input$choose_trap]]$dist)
+          show.distgam(x = x, shape = shape, d = d)
+          title(paste("array", input$choose_trap))
         }
+      }else{
+        NULL
+      }
+      dev.off()
     })
-    
-    ## inhomogeneous density plot
-    output$combine <- renderUI({
-        if(trapType() == "multi"){
-            checkboxInput("combine", "Combine all session",TRUE)
-        }
+  
+  output$downloadModel <- downloadHandler(
+    filename = paste("ascr_",date(),".RData",sep = ""),
+    content = function(file){
+      fit <- fit()
+      save(fit,file = file)
+    }
+  )
+  output$report <- downloadHandler(
+    filename = "animation.html",
+    content = function(file) {
+      disable("downloadSurfPlot")
+      disable("downloadContPlot")
+      disable("downloadDetPlot")
+      disable("downloadMask")
+      disable("downloadModel")
+      disable("side-panel")
+      disable("downloadbearingPlot")
+      disable("downloaddistancePlot")
+      disable("anispeed")
+      disable("report")
+      shinyjs::show("proc_report")
+      fit <- fit()
+      array <- ifelse(!is.null(input$choose_trap), input$choose_trap, 1)
+      ## Copy the report file to a temporary directory before processing it, in
+      ## case we don't have write permissions to the current working dir (which
+      ## can happen when deployed).
+      ## go to a temp dir to avoid permission issues
+      tempReport <- file.path(tempdir(), "report.Rmd")
+      file.copy("report.Rmd", tempReport, overwrite = TRUE)
+      ## Set up parameters to pass to Rmd document
+      params <- list(fit = fit(),
+                     anispeed = input$anispeed,
+                     array = array)
+      ## Knit the document, passing in the `params` list, and eval it in a
+      ## child of the global environment (this isolates the code in the document
+      ## from the code in this app).
+      render(tempReport, output_file = file,
+             params = params,
+             envir = new.env(parent = globalenv())
+      )
+      enable("downloadSurfPlot")
+      enable("downloadContPlot")
+      enable("downloadDetPlot")
+      enable("side-panel")
+      enable("downloadbearingPlot")
+      enable("downloaddistancePlot")
+      enable("anispeed")
+      enable("downloadMask")
+      enable("downloadModel")
+      enable("report")
+      hide("proc_report")
     })
-    
-    output$which.session <- renderUI({
-        if (trapType() == "multi" & input$combine == FALSE){
-            numericInput("plot.session", "Plot Session No.", value = 1)
-        }
-    })
-    
-    output$upload.mask <- renderUI({
-        if (input$combine == TRUE){
-            checkboxInput("upload.dsurf.mask","Upload My Mask", FALSE)
-        }
-    })
-    
-    output$mask.file <- renderUI({
-        if (input$combine == TRUE & input$upload.dsurf.mask == TRUE){
-            fileInput("dsurf.mask", "Upload csv file of mask",
-                  multiple = FALSE,
-                  accept = c("text/csv",
-                             "text/comma-separated-values,text/plain",
-                             ".csv"))
-        }
-    })
-    
-    output$density_surface <- renderPlot({
-        if(trapType() == "single"){
-            req(!is.null(input$covariate.choose))
-            show.Dsurf(fit(), session = 1)
-            title(main = paste("Session",1))
-        } else if (input$combine == FALSE){
-          req(!is.null(input$covariate.choose))
-          req(input$plot.session)
-          show.Dsurf(fit(), session = input$plot.session)
-          title(main = paste("Session",input$plot.session))
-        } else{
-          req(!is.null(input$covariate.choose))
-          req(mask())
-          mask = mask()
-          
-          if (!is.null(input$plotmaskspacing)){
-            spacing = input$plotmaskspacing
-          } else{spacing = input$spacing} 
-          
-          var = input$covariate.choose
-          cov.var = cov.var()
-          point.var = point.var()
-          
-          tmp.cov = c()
-          tmp.point = c()
-          for (i in 1:length(var)) {
-            if (any(var[i] == cov.var)){
-              tmp.cov = append(tmp.cov,var[i])
-            } else{
-              tmp.point = append(tmp.point,var[i])
-            }
-          }
-          if (!is.null(tmp.point)){tmp.point = substring(tmp.point,10)}
-          
-          if (input$upload.dsurf.mask == TRUE){
-              file = input$dsurf.mask
-              req(file)
-              new.mask = read.csv(file$datapath)
-              validate(need("x" %in% names(new.mask) & "y" %in% names(new.mask),
-                            "Mask file must contain columns named x and y"))
-          } else{
-            x.max = max(sapply(mask, function(x){max(x[, "x"])}))
-            x.min = min(sapply(mask, function(x){min(x[, "x"])}))
-            y.max = max(sapply(mask, function(x){max(x[, "y"])}))
-            y.min = min(sapply(mask, function(x){min(x[, "y"])}))
-            x.col = seq(x.min,x.max,by=spacing)
-            y.col = seq(y.min,y.max,by=spacing)
-            new.mask = data.frame("x"=rep(x.col,by=length(y.col)),"y"=rep(y.col,each=length(x.col)))
-          }
-          new.data = plot.prediction(mask = new.mask,
-                                     cov.var = tmp.cov,
-                                     cov.list = cov.list(),
-                                     point.var = tmp.point,
-                                     point.df = point.df(),
-                                     nmax = input$nmax.fit,
-                                     maxdist = input$maxdist.fit)[[1]]
-          show.Dsurf(fit(),newdata = new.data)
-          title("Combine all sessions")
-        }
-    })
-    
-    ## Downloads
-    output$downloaddensity_surfPlot<- downloadHandler(
-        filename = "ascr_density_surface.png",
-        content = function(file) {
-            req(!is.null(input$covariate.choose))
-            png(file)
-            show.Dsurf(fit(), session = input$choose_trap)
-            title(main = paste("array",input$choose_trap))
-            dev.off()
-        })
-    output$downloadMask <- downloadHandler(
-        filename = "ascrMask.png",
-        content = function(file) {
-            png(file)
-            traps <- traps()
-            mask = mask()
-            if(trapType() == "single"){
-                show.mask(mask,traps)
-            }else{
-                traps <- split(traps, traps$array)
-                m.lst <- list()
-                for(i in 1:length(traps)){ m.lst[[i]] <- show.mask(mask[[i]], traps = traps[[i]])}
-                do.call(grid.arrange, m.lst)
-            }
-            dev.off()
-        })
-    output$downloadSurfPlot <- downloadHandler(
-        filename = "ascr_detection_surface_plot.png",
-        content = function(file) {
-            png(file)
-            fit <- fit()
-            if(class(fit)[1] == "ascr"){
-                par(mfrow = c(1,2))
-                show.detsurf(fit,session = input$choose_trap)
-                show.detsurf(fit,,session = input$choose_trap, surface = TRUE)    
-            }else{
-                plot(1,1,col="white",axes = FALSE,xlab = "",ylab = "")
-                text(1,1,paste("convergence issues try advanced options"),col = "grey")
-            }
-            dev.off()
-        })
-    output$downloadContPlot <- downloadHandler(
-        filename = "ascr_detection_contour_plot.png",
-        content = function(file) {
-            png(file)
-            fit <- fit()
-            if(class(fit)[1] == "ascr"){
-                par(mfrow = c(1,2))
-                show.detsurf(fit,session = input$choose_trap)
-                show.detsurf(fit,,session = input$choose_trap, surface = FALSE)    
-            }else{
-                plot(1,1,col="white",axes = FALSE,xlab = "",ylab = "")
-                text(1,1,paste("convergence issues try advanced options"),col = "grey")
-            }
-            dev.off()
-        })
-    output$downloadDetPlot <- downloadHandler(
-        filename = "ascr_detection_function_plot.png",
-        content = function(file) {
-            png(file)
-            fit <- fit()
-            if(class(fit)[1]=="ascr"){
-                ascr:::show.detfn(fit)
-            }else{
-                NULL
-            }
-            dev.off()
-        })
-    ## deal with bearing and distance plots
-    observe({
-        fit <- fit()
-        if(is.null(fit$args$capt[[1]]$dist)){
-            disable("downloaddistancePlot")
-            disable("distD")
-        }else{
-            enable("downloaddistancePlot")
-            enable("distD")
-        }
-        if(is.null(fit$args$capt[[1]]$bearing)){
-            disable("downloadbearingPlot")
-        }else{
-            enable("downloadbearingPlot")
-        }
-    })
-    output$downloadbearingPlot <- downloadHandler(
-        filename = "ascr_bearing_distribution_plot.png",
-        content = function(file) {
-            fit <- fit()
-            validate(need(!is.null(fit$args$capt[[1]]$bearing),"No bearing data provided"))
-            png(file) 
-            if(class(fit)[1]=="ascr"){ 
-                kappa = fit$coefficients["kappa"]
-                if(trapType() == "single"){
-                    theta = sort(fit$args$capt[[1]]$bearing - pi)
-                    show.dvm(theta = theta, kappa = kappa)
-                }else{
-                    theta = sort(fit$args$capt[[input$choose_trap]]$bearing - pi)
-                    show.dvm(theta = theta, kappa = kappa)
-                    title(paste("array", input$choose_trap))
-                }
-            }else{
-                NULL
-            }
-            dev.off()
-        })
-    output$downloaddistancePlot <- downloadHandler(
-        filename = "ascr_distance_distribution_plot.png",
-        content = function(file) {
-            fit <- fit()
-            validate(need(!is.null(fit$args$capt[[1]]$dist),"No distance data provided"))
-            png(file)
-            if(class(fit)[1]=="ascr"){
-                d <- input$distD
-                shape <- fit$coefficients["alpha"]
-                if(trapType() == "single"){
-                    x <- sort(fit$args$capt[[1]]$dist)
-                    show.distgam(x = x, shape = shape, d = d)
-                }else{
-                    x <- sort(fit$args$capt[[input$choose_trap]]$dist)
-                    show.distgam(x = x, shape = shape, d = d)
-                    title(paste("array", input$choose_trap))
-                }
-            }else{
-                NULL
-            }
-            dev.off()
-        })
-    
-    output$downloadModel <- downloadHandler(
-        filename = paste("ascr_",date(),".RData",sep = ""),
-        content = function(file){
-            fit <- fit()
-            save(fit,file = file)
-        }
-    )
-    output$report <- downloadHandler(
-        filename = "animation.html",
-        content = function(file) {
-            disable("downloadSurfPlot")
-            disable("downloadContPlot")
-            disable("downloadDetPlot")
-            disable("downloadMask")
-            disable("downloadModel")
-            disable("side-panel")
-            disable("downloadbearingPlot")
-            disable("downloaddistancePlot")
-            disable("anispeed")
-            disable("report")
-            shinyjs::show("proc_report")
-            fit <- fit()
-            array <- ifelse(!is.null(input$choose_trap), input$choose_trap, 1)
-            ## Copy the report file to a temporary directory before processing it, in
-            ## case we don't have write permissions to the current working dir (which
-            ## can happen when deployed).
-            ## go to a temp dir to avoid permission issues
-            tempReport <- file.path(tempdir(), "report.Rmd")
-            file.copy("report.Rmd", tempReport, overwrite = TRUE)
-            ## Set up parameters to pass to Rmd document
-            params <- list(fit = fit(),
-                           anispeed = input$anispeed,
-                           array = array)
-            ## Knit the document, passing in the `params` list, and eval it in a
-            ## child of the global environment (this isolates the code in the document
-            ## from the code in this app).
-            render(tempReport, output_file = file,
-                   params = params,
-                   envir = new.env(parent = globalenv())
-            )
-            enable("downloadSurfPlot")
-            enable("downloadContPlot")
-            enable("downloadDetPlot")
-            enable("side-panel")
-            enable("downloadbearingPlot")
-            enable("downloaddistancePlot")
-            enable("anispeed")
-            enable("downloadMask")
-            enable("downloadModel")
-            enable("report")
-            hide("proc_report")
-        })
-    observeEvent(input$reset_input, {
-        updateSliderInput(session, "spacing", max = 1000, value = 250)
-        updateSliderInput(session, "buffer", max =10000, value = 1000)
-        updateCheckboxInput(session, "example",  value = FALSE)
-        reset("side-panel")
-    })
-    observe({
-        if (input$close > 0) {
-            stopApp()
-        }
-    })
-    session$onSessionEnded(stopApp)
+  observeEvent(input$reset_input, {
+    updateSliderInput(session, "spacing", max = 1000, value = 250)
+    updateSliderInput(session, "buffer", max =10000, value = 1000)
+    updateCheckboxInput(session, "example",  value = FALSE)
+    reset("side-panel")
+  })
+  observe({
+    if (input$close > 0) {
+      stopApp()
+    }
+  })
+  session$onSessionEnded(stopApp)
 }
-
-
-

@@ -105,13 +105,9 @@ ui=fluidPage(
                          selected = "rad",inline = TRUE),
             h3(icon("puzzle-piece"),tags$b("Build mask")),
             ## Input: integer of mask buffer in meters (this is updated based on trap info when file is loaded)
-            numericInput("buffer", "Choose mask buffer (m):",
-                         min = 1, max = 10000,
-                         value = 1000),
+            numericInput("buffer","Choose mask buffer (m):",value = 1000),
             ## Input: integer of mask spacing in meters (this is updated based on trap info when file is loaded)
-            numericInput("spacing", "Choose mask spacing (m):",
-                         min = 0.1, max = 1000,step = 0.1,
-                         value = 250),
+            numericInput("spacing","Choose mask buffer (m):",value = 20),
             actionButton("msk", "Build mask",icon("cogs")),
             hidden(p(id = "processing_msk", "Constructing mask...")),
             ## break
